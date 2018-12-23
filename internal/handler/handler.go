@@ -2,10 +2,14 @@ package handler
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
 	"github.com/ProtocolONE/payone-repository/pkg/proto/repository"
 	"github.com/ProtocolONE/payone-repository/tools"
+	"github.com/centrifugal/gocent"
 	"go.uber.org/zap"
 	"net/http"
 	"net/url"
@@ -30,8 +34,12 @@ const (
 	HeaderSignature     = "Signature"
 	HeaderAuthorization = "Authorization"
 
-	NotificationActionCheck = "check"
+	NotificationActionCheck   = "check"
 	NotificationActionPayment = "payment"
+
+	centrifugoFieldOrderId = "order_id"
+	centrifugoFieldStatus  = "status"
+	centrifugoChanelMask   = "payment:notify#%s"
 )
 
 var (
@@ -47,13 +55,19 @@ type Notifier interface {
 }
 
 type Handler struct {
-	order      *proto.Order
-	repository repository.RepositoryService
-	logger     *zap.SugaredLogger
+	order            *proto.Order
+	repository       repository.RepositoryService
+	logger           *zap.SugaredLogger
+	centrifugoClient *gocent.Client
 }
 
-func NewHandler(o *proto.Order, rep repository.RepositoryService, log *zap.SugaredLogger) *Handler {
-	return &Handler{order: o, repository: rep, logger: log}
+func NewHandler(o *proto.Order, rep repository.RepositoryService, log *zap.SugaredLogger, cClient *gocent.Client) *Handler {
+	return &Handler{
+		order:            o,
+		repository:       rep,
+		logger:           log,
+		centrifugoClient: cClient,
+	}
 }
 
 func (h *Handler) GetNotifier() (Notifier, error) {
@@ -93,4 +107,26 @@ func (h *Handler) request(method, url string, req []byte, headers map[string]str
 	}
 
 	return client.Do(httpReq)
+}
+
+func (h *Handler) SendCentrifugoMessage(o *proto.Order) error {
+	dbHelper := tools.DatabaseHelper{}
+
+	msg := map[string]interface{}{
+		centrifugoFieldOrderId: dbHelper.ByteToObjectId(o.GetId()).Hex(),
+		centrifugoFieldStatus:  OrderAlphabetStatuses[o.GetStatus()],
+	}
+
+	ch := fmt.Sprintf(centrifugoChanelMask, msg[centrifugoFieldOrderId])
+	b, err := json.Marshal(msg)
+
+	if err != nil {
+		return err
+	}
+
+	if err = h.centrifugoClient.Publish(context.Background(), ch, b); err != nil {
+		return err
+	}
+
+	return nil
 }

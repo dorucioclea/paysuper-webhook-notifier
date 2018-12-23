@@ -1,0 +1,12 @@
+{
+  "secret": "secret",
+  "api_key": "api_secret",
+  "history_size": 10,
+  "history_lifetime": 30,
+  "namespaces": [
+    {
+      "name": "payment",
+      "presence": true
+    }
+  ]
+}

@@ -8,8 +8,8 @@ import (
 
 func main() {
 	app := internal.NewApplication()
-	app.Init()
 	app.InitLogger()
+	app.Init()
 
 	defer func() {
 		if err := app.Logger.Sync(); err != nil {

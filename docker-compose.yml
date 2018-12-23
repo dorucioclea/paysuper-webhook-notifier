@@ -1,0 +1,37 @@
+version: '3.6'
+
+services:
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    hostname: "rabbit"
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    labels:
+      name: "rabbitmq"
+      
+  consul:
+    image: consul:latest
+    command: consul agent -dev -client 0.0.0.0
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+      
+  centrifugo:
+    image: centrifugo/centrifugo:latest
+    environment:
+        - CENTRIFUGO_SECRET=secret
+        - CENTRIFUGO_ADMIN_PASSWORD=admin
+        - CENTRIFUGO_ADMIN_SECRET=secret
+    volumes:
+        - D:/Projects/Go/github.com/ProtocolONE/payone-notifier/configs/centrifugo:/centrifugo
+    tty: true
+    command: centrifugo --admin -c /centrifugo/config.json
+    ports:
+      - "8000:8000"
+    networks:
+        - p1devnet
+              
+networks:
+  p1devnet:
+    external: true
