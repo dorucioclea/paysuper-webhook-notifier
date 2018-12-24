@@ -10,9 +10,11 @@ import (
 	"github.com/ProtocolONE/payone-repository/pkg/proto/repository"
 	"github.com/ProtocolONE/payone-repository/tools"
 	"github.com/centrifugal/gocent"
+	"github.com/micro/protobuf/ptypes"
 	"go.uber.org/zap"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 const (
@@ -76,6 +78,27 @@ func (h *Handler) GetNotifier() (Notifier, error) {
 	if !ok {
 		return nil, errors.New(errorNotifierHandlerNotFound)
 	}
+
+	m := h.order.GetProject().GetMerchant()
+
+	if m.GetFirstPaymentAt() == nil {
+		fpt, err := ptypes.TimestampProto(time.Now())
+
+		if err != nil {
+			return nil, err
+		}
+
+		m.FirstPaymentAt = fpt
+		h.repository.UpdateMerchant(context.TODO(), m)
+	}
+
+	ct, err := ptypes.TimestampProto(time.Now())
+
+	if err != nil {
+		return nil, err
+	}
+
+	h.order.ProjectLastRequestedAt = ct
 
 	return handler(h), nil
 }
