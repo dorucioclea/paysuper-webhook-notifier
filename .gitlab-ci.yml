@@ -50,7 +50,7 @@ deploy_production:
       helm init --client-only &&
       helm upgrade --install $P1_PROJECT .helm
         --set backend.image=$CI_REGISTRY_IMAGE
-        --set backend.imageTag="$CI_COMMIT_REF_SLUG"-backend1.$CI_PIPELINE_ID
+        --set backend.imageTag="$CI_COMMIT_REF_SLUG".$CI_PIPELINE_ID
         --wait
         --timeout 180 ||
       (helm history --max 2 $P1_PROJECT | head -n 2 | tail -n 1 | awk "{print \$1}" | xargs helm rollback $P1_PROJECT && exit 1)'
