@@ -5,7 +5,7 @@ cf:
   url: https://cf.tst.protocol.one
 
 backend:
-  name: p1paynotifier
+  name: gobackend
   role: gobackend
   image: "p1hub/payone-notifier"
   imageTag: latest
