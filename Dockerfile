@@ -8,8 +8,8 @@ ENV GO111MODULE=on
 ENV MICRO_REGISTRY_ADDRESS=p1pay-consul
 ENV MICRO_BROKER=rabbitmq
 ENV MICRO_BROKER_ADDRESS=amqp://p1pay-rabbitmq
-ENV CENTRIFUGO_URL=http://localhost:8000
-ENV CENTRIFUGO_KEY=H383Js2!dhssjks#9!
+ENV CENTRIFUGO_URL=https://cf.tst.protocol.one
+ENV CENTRIFUGO_KEY=3BHvbrHkThYJ6J8Knd4DCsbL
 
 
 COPY go.mod go.sum ./
