@@ -18,8 +18,8 @@ import (
 )
 
 type Config struct {
-	CentrifugoUrl string `envconfig:"CENTRIFUGO_URL" required:"true"`
-	CentrifugoKey string `envconfig:"CENTRIFUGO_KEY" required:"true"`
+	CentrifugoUrl   string `envconfig:"CENTRIFUGO_URL" required:"true"`
+	CentrifugoKey   string `envconfig:"CENTRIFUGO_KEY" required:"true"`
 }
 
 type NotifierApplication struct {
@@ -101,7 +101,10 @@ func (app *NotifierApplication) Process(ctx context.Context, o *proto.Order) err
 	h := handler.NewHandler(o, app.gRpcRepository, app.sugaredLogger, app.centrifugoClient)
 
 	if o.Status == constant.OrderStatusPaymentSystemDeclined || o.Status == constant.OrderStatusPaymentSystemCanceled {
-		return h.SendCentrifugoMessage(o)
+		if err := h.SendCentrifugoMessage(o); err != nil {
+			log.Println("[centrifugo]: " + err.Error())
+		}
+		return nil
 	}
 
 	n, err := h.GetNotifier()
@@ -112,5 +115,9 @@ func (app *NotifierApplication) Process(ctx context.Context, o *proto.Order) err
 
 	n.Notify()
 
-	return h.SendCentrifugoMessage(o)
+	if err := h.SendCentrifugoMessage(o); err != nil {
+		log.Println("[centrifugo]: " + err.Error())
+	}
+
+	return nil
 }
