@@ -9,7 +9,7 @@ ENV MICRO_REGISTRY_ADDRESS=p1pay-consul
 ENV MICRO_BROKER=rabbitmq
 ENV MICRO_BROKER_ADDRESS=amqp://p1pay-rabbitmq
 ENV CENTRIFUGO_URL=https://cf.tst.protocol.one
-ENV CENTRIFUGO_KEY=3BHvbrHkThYJ6J8Knd4DCsbL
+ENV CENTRIFUGO_KEY=SudAmnZ2anToIq6xzyYdtxGc
 
 
 COPY go.mod go.sum ./
