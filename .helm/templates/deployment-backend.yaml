@@ -45,7 +45,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: centrifugo-centrifugo
-                key: secret
+                key: api_key
         #livenessProbe:
         #  httpGet:
         #    path: /_healthz
