@@ -15,11 +15,9 @@ func newEmptyHandler(h *Handler) Notifier {
 }
 
 func (n *Empty) Notify() {
-	log.Printf("[Notifier_DEBUG] start notification for order id: %s", n.order.Id)
-
 	n.order.Status = constant.OrderStatusProjectComplete
 
 	if _, err := n.repository.UpdateOrder(context.TODO(), n.order); err != nil {
-		log.Printf("[Notifier_DEBUG] notification for order id failed: %s", n.order.Id)
+		log.Printf("[Notifier_DEBUG] notification for order id failed with error %s", err.Error())
 	}
 }
