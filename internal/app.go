@@ -113,11 +113,15 @@ func (app *NotifierApplication) Process(ctx context.Context, o *proto.Order) err
 		return err
 	}
 
+	log.Println("[Notifier] before notify step")
 	n.Notify()
+	log.Println("[Notifier] after notify step")
 
 	if err := h.SendCentrifugoMessage(o); err != nil {
 		log.Println("[centrifugo]: " + err.Error())
 	}
+
+	log.Println("[Notifier] after centrifugo step")
 
 	return nil
 }
