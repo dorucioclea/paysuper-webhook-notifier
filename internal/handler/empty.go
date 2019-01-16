@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"github.com/ProtocolONE/payone-repository/pkg/constant"
+	"log"
 )
 
 type Empty struct {
@@ -14,6 +15,11 @@ func newEmptyHandler(h *Handler) Notifier {
 }
 
 func (n *Empty) Notify() {
+	log.Printf("[Notifier] start notification for order id: %s", n.order.Id)
+
 	n.order.Status = constant.OrderStatusProjectComplete
-	n.repository.UpdateOrder(context.TODO(), n.order)
+
+	if _, err := n.repository.UpdateOrder(context.TODO(), n.order); err != nil {
+		log.Printf("[Notifier] notification for order id failed: %s", n.order.Id)
+	}
 }
