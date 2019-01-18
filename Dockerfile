@@ -5,7 +5,6 @@ RUN apk add bash ca-certificates git
 WORKDIR /application
 
 ENV GO111MODULE=on
-ENV MICRO_REGISTRY_ADDRESS=p1pay-consul
 ENV MICRO_BROKER=rabbitmq
 ENV MICRO_BROKER_ADDRESS=amqp://p1pay-rabbitmq
 ENV CENTRIFUGO_URL=https://cf.tst.protocol.one
