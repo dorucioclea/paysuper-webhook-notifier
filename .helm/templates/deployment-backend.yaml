@@ -35,10 +35,17 @@ spec:
         heritage: {{ .Release.Service }}
         role: {{ $deployment.role }}
     spec:
+      serviceAccountName: {{ .Release.Name }}
       containers:
       - name: {{ $deployment.name }}
         image: {{ $deployment.image }}:{{ $deployment.imageTag }}
         env:
+          - name: MICRO_REGISTRY
+            value: "kubernetes"
+          - name: MICRO_SELECTOR
+            value: "static"
+          - name: MICRO_SERVER_ADDRESS
+            value: "0.0.0.0:{{ $deployment.port }}"
           - name: CENTRIFUGO_URL
             value: {{ .Values.cf.url }}
           - name: CENTRIFUGO_KEY
