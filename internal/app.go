@@ -109,50 +109,36 @@ func (app *NotifierApplication) initConfig() {
 }
 
 func (app *NotifierApplication) initRmqDlxPublisher() {
-	rmqConn, err := amqp.Dial(app.config.BrokerAddress)
-	if err != nil {
-		panic(err)
-	}
-	defer rmqConn.Close()
+	conn, err := amqp.Dial(app.config.BrokerAddress)
 
-	rmqChan, err := rmqConn.Channel()
 	if err != nil {
-		panic(err)
+		log.Fatalf("Connection to RabbitMQ (address: %s) failed with error: %s", app.config.BrokerAddress, err.Error())
 	}
-	defer rmqChan.Close()
+
+	app.RmqConn = conn
+
+	ch, err := conn.Channel()
+
+	if err != nil {
+		log.Fatalf("Opening RabbitMQ channel failed with error: %s", err.Error())
+	}
+
+	app.RmqChan = ch
+
+	exchange := "notifier.dlx.exchange"
+	//publisherQueue, listenerQueue := "notifier.publisher.dlx.queue", "notifier.listener.dlx.queue"
+
+	err = ch.ExchangeDeclare(exchange, "topic", false, false, false, false, nil)
+
+	if err != nil {
+		log.Fatalf("RabbitMQ exchange declaration failed with error: %s", err.Error())
+	}
 
 	args := make(amqp.Table)
-	args["x-dead-letter-exchange"] = "errors"
-	args["x-dead-letter-routing-key"] = "listening"
+	args["x-message-ttl"] = int32(dlxDelay * 1000)
+	args["x-dead-letter-exchange"] = exchange
+	args["x-dead-letter-routing-key"] = "notifier.publish.dlx"
 
-	listen, err := rmqChan.QueueDeclare("listening", true, false, false, false, args)
-	if err != nil {
-		panic(err)
-	}
-
-	args["x-dead-letter-routing-key"] = "publish"
-	publish, err := rmqChan.QueueDeclare("publish", true, false, false, false, args)
-	if err != nil {
-		panic(err)
-	}
-
-	msg, err := rmqChan.Consume(listen.Name, "", true, false, false, false, nil)
-	if err != nil {
-		panic(err)
-	}
-
-	rmqChan.Publish("", publish.Name, false, false, amqp.Publishing{Body: []byte("123")})
-
-	forever := make(chan bool)
-
-	go func() {
-		for d := range msg {
-			log.Printf("Received a message: %s", d.Body)
-		}
-	}()
-
-	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-	<-forever
 }
 
 func (app *NotifierApplication) Run() {
