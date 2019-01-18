@@ -11,6 +11,8 @@ github.com/ProtocolONE/payone-repository v1.0.30 h1:ihOVxik7GdoWhI4KzCP2BN0tfaPC
 github.com/ProtocolONE/payone-repository v1.0.30/go.mod h1:DqkDFlvYx46yzJMghL0E8g95QEd0Lfs6zprKZBJ1DhI=
 github.com/ProtocolONE/payone-repository v1.0.73 h1:365onO1fZv3JCRsiUSIKR/RqOg/TINjG/udg6XA8jeg=
 github.com/ProtocolONE/payone-repository v1.0.73/go.mod h1:ye3Bm4Sm8iJnj4kO6K38HG3K9U6lWUWfebk7Bs5T7cE=
+github.com/ProtocolONE/payone-repository v1.0.74 h1:K277e/Zp85KOCsd3dyD5RUI1puNuAMiYSU7cLb6Y69s=
+github.com/ProtocolONE/payone-repository v1.0.74/go.mod h1:ye3Bm4Sm8iJnj4kO6K38HG3K9U6lWUWfebk7Bs5T7cE=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da h1:8GUt8eRujhVEGZFFEjBj46YV4rDjvGrNxb0KMWYkL2I=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 h1:xJ4a3vCFaGF/jqvzLMYoU8P317H5OQ+Via4RmuPwCS0=

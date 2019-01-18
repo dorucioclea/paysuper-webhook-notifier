@@ -22,6 +22,8 @@ const (
 	dlxQueueName    = "notifier-queue-dlx"
 	dlxExchangeName = "notifier-exchange-dlx"
 	dlxDelay        = 10
+
+	serviceName = "p1paynotifier"
 )
 
 type Config struct {
@@ -56,7 +58,7 @@ func (app *NotifierApplication) Init() {
 	app.initConfig()
 
 	options := []micro.Option{
-		micro.Name(constant.PayOneSubscriberNotifierName),
+		micro.Name(serviceName),
 		micro.Version(constant.PayOneMicroserviceVersion),
 	}
 
@@ -126,7 +128,7 @@ func (app *NotifierApplication) initRmqDlxPublisher() {
 	app.RmqChan = ch
 
 	exchange := "notifier.dlx.exchange"
-	//publisherQueue, listenerQueue := "notifier.publisher.dlx.queue", "notifier.listener.dlx.queue"
+	publisherQueue, listenerQueue := "notifier.publisher.dlx.queue", "notifier.listener.dlx.queue"
 
 	err = ch.ExchangeDeclare(exchange, "topic", false, false, false, false, nil)
 
@@ -139,6 +141,48 @@ func (app *NotifierApplication) initRmqDlxPublisher() {
 	args["x-dead-letter-exchange"] = exchange
 	args["x-dead-letter-routing-key"] = "notifier.publish.dlx"
 
+	publish, err := app.RmqChan.QueueDeclare(publisherQueue, true, false, false, false, args)
+
+	if err != nil {
+		log.Fatalf("RabbitMQ publish queue declaration failed with error: %s", err.Error())
+	}
+
+	err = ch.QueueBind(publish.Name, "notifier.publish.dlx", exchange, true, amqp.Table{})
+
+	if err != nil {
+		log.Fatalf("RabbitMQ publish queue binding failed with error: %s", err.Error())
+	}
+
+	args["x-dead-letter-routing-key"] = "notifier.listener.dlx"
+
+	listen, err := app.RmqChan.QueueDeclare(listenerQueue, true, false, false, false, args)
+
+	if err != nil {
+		log.Fatalf("RabbitMQ listen queue declaration failed with error: %s", err.Error())
+	}
+
+	err = ch.QueueBind(listen.Name, "notifier.listener.dlx", exchange, true, amqp.Table{})
+
+	if err != nil {
+		log.Fatalf("RabbitMQ listen queue binding failed with error: %s", err.Error())
+	}
+
+	msg, err := app.RmqChan.Consume(listen.Name, "", true, false, false, false, nil)
+
+	if err != nil {
+		log.Fatalf("RabbitMQ consumer registration failed with error: %s", err.Error())
+	}
+
+	forever := make(chan bool)
+
+	go func() {
+		for d := range msg {
+			log.Printf("Received a message: %s", d.Body)
+		}
+	}()
+
+	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
+	<-forever
 }
 
 func (app *NotifierApplication) Run() {

@@ -2,7 +2,7 @@ module github.com/ProtocolONE/payone-notifier
 
 require (
 	github.com/FZambia/sentinel v1.0.0 // indirect
-	github.com/ProtocolONE/payone-repository v1.0.73
+	github.com/ProtocolONE/payone-repository v1.0.74
 	github.com/centrifugal/gocent v2.0.2+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/favadi/protoc-go-inject-tag v0.0.0-20181008023834-c2c1884c833d // indirect
