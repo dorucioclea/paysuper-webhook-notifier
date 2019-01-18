@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/ProtocolONE/payone-repository/pkg/constant"
 	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
-	"github.com/ProtocolONE/payone-repository/tools"
 	"github.com/golang/protobuf/ptypes"
 	"log"
 	"net/http"
@@ -141,11 +140,10 @@ func (n *CardPay) setPaymentData(req *proto.CardPayPaymentCallback) error {
 	var val string
 	var ok bool
 
-	dbHelper := tools.DatabaseHelper{}
 	params := n.order.GetPaymentMethodTxnParams()
 
 	pd := &proto.CallbackCardPayPaymentData{
-		Id:          dbHelper.ByteToObjectId(n.order.GetId()).Hex(),
+		Id:          n.order.GetId(),
 		Amount:      n.order.GetProjectOutcomeAmount(),
 		Currency:    n.order.GetProjectOutcomeCurrency().CodeA3,
 		Description: n.order.GetDescription(),

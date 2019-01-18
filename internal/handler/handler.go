@@ -133,10 +133,8 @@ func (h *Handler) request(method, url string, req []byte, headers map[string]str
 }
 
 func (h *Handler) SendCentrifugoMessage(o *proto.Order) error {
-	dbHelper := tools.DatabaseHelper{}
-
 	msg := map[string]interface{}{
-		centrifugoFieldOrderId: dbHelper.ByteToObjectId(o.GetId()).Hex(),
+		centrifugoFieldOrderId: o.GetId(),
 		centrifugoFieldStatus:  OrderAlphabetStatuses[o.GetStatus()],
 	}
 

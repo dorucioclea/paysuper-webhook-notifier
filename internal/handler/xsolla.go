@@ -10,7 +10,6 @@ import (
 	"github.com/ProtocolONE/payone-repository/pkg/constant"
 	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
 	"github.com/ProtocolONE/payone-repository/pkg/proto/repository"
-	"github.com/ProtocolONE/payone-repository/tools"
 	"github.com/micro/protobuf/ptypes"
 	"log"
 	"net/http"
@@ -89,8 +88,7 @@ func (n *XSolla) do(url string, req interface{}, action string) (*http.Response,
 		return nil, err
 	}
 
-	dbHelper := tools.DatabaseHelper{}
-	oId := dbHelper.ByteToObjectId(n.order.GetId()).Hex()
+	oId := n.order.GetId()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent &&
 		resp.StatusCode != http.StatusUnprocessableEntity {
@@ -115,8 +113,6 @@ func (n *XSolla) getCheckNotification() *proto.XSollaCheckNotification {
 }
 
 func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, error) {
-	dbHelper := tools.DatabaseHelper{}
-
 	tDate, err := ptypes.Timestamp(n.order.GetPaymentMethodOrderClosedAt())
 
 	if err != nil {
@@ -179,7 +175,7 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 			Country: n.order.GetPayerData().GetCountryCodeA2(),
 		},
 		Transaction: &proto.XSollaTransaction{
-			Id:            dbHelper.ByteToObjectId(n.order.GetId()).Hex(),
+			Id:            n.order.GetId(),
 			ExternalId:    n.order.GetProjectOrderId(),
 			PaymentDate:   tDate.Format(constant.PaymentSystemCardPayDateFormat),
 			PaymentMethod: n.order.GetPaymentMethod().GetGroupAlias(),
