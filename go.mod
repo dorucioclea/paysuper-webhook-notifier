@@ -2,7 +2,7 @@ module github.com/ProtocolONE/payone-notifier
 
 require (
 	github.com/FZambia/sentinel v1.0.0 // indirect
-	github.com/ProtocolONE/payone-repository v1.0.74
+	github.com/ProtocolONE/payone-repository v1.0.82
 	github.com/centrifugal/gocent v2.0.2+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/favadi/protoc-go-inject-tag v0.0.0-20181008023834-c2c1884c833d // indirect
@@ -10,6 +10,7 @@ require (
 	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/protobuf v1.2.1-0.20181128192352-1d3f30b51784
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
+	github.com/google/uuid v1.1.0
 	github.com/gorilla/websocket v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.6.2 // indirect
 	github.com/igm/sockjs-go v0.0.0-20181115114233-fd48fe90e436 // indirect

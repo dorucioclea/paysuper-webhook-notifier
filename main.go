@@ -18,17 +18,7 @@ func main() {
 		}
 	}()
 
-	defer func() {
-		if err := app.RmqConn.Close(); err != nil {
-			return
-		}
-	}()
-
-	defer func() {
-		if err := app.RmqChan.Close(); err != nil {
-			return
-		}
-	}()
+	defer app.RabbitMq.Stop()
 
 	app.Run()
 }

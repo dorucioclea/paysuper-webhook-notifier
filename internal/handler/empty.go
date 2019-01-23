@@ -20,4 +20,10 @@ func (n *Empty) Notify() {
 	if _, err := n.repository.UpdateOrder(context.TODO(), n.order); err != nil {
 		log.Printf("[Notifier_DEBUG] notification for order id failed with error %s", err.Error())
 	}
+
+	log.Println("Empty notify done")
+
+	if err := n.rabbitMq.Publish("123"); err != nil {
+		log.Println("Publish error" + err.Error())
+	}
 }

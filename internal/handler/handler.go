@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	tools2 "github.com/ProtocolONE/payone-notifier/tools"
 	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
 	"github.com/ProtocolONE/payone-repository/pkg/proto/repository"
 	"github.com/ProtocolONE/payone-repository/tools"
@@ -61,14 +62,21 @@ type Handler struct {
 	repository       repository.RepositoryService
 	logger           *zap.SugaredLogger
 	centrifugoClient *gocent.Client
+	rabbitMq         *tools2.RabbitMq
 }
 
-func NewHandler(o *proto.Order, rep repository.RepositoryService, log *zap.SugaredLogger, cClient *gocent.Client) *Handler {
+func NewHandler(
+	o *proto.Order,
+	rep repository.RepositoryService,
+	log *zap.SugaredLogger,
+	cClient *gocent.Client,
+	rmq *tools2.RabbitMq) *Handler {
 	return &Handler{
 		order:            o,
 		repository:       rep,
 		logger:           log,
 		centrifugoClient: cClient,
+		rabbitMq:         rmq,
 	}
 }
 
