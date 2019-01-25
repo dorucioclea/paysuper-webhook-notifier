@@ -91,8 +91,6 @@ func NewRabbitMq(address string) *RabbitMq {
 }
 
 func (rmq *RabbitMq) Publish(msg interface{}) error {
-
-
 	err := rmq.channel.ExchangeDeclare(
 		rmq.Opts.Exchange.Name,
 		rmq.Opts.Exchange.Type,
