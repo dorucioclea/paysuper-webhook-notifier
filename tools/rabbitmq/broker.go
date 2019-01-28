@@ -3,8 +3,13 @@ package rabbitmq
 import (
 	"errors"
 	"github.com/gogo/protobuf/proto"
+	"github.com/streadway/amqp"
 	"log"
+	"os"
+	"os/signal"
 	"reflect"
+	"runtime"
+	"syscall"
 )
 
 type Broker struct {
@@ -12,10 +17,50 @@ type Broker struct {
 	rabbitMQ *rabbitMq
 
 	subscriber *subscriber
+	publisher  *publisher
+
+	Opts *BrokerOpts
+}
+
+type BrokerOpts struct {
+	*QueueOpts
+	*ExchangeOpts
+	*QueueBindOpts
+	*ConsumeOpts
+	*PublishOpts
+}
+
+type QueueOpts struct {
+	Name string
+	Opts Opts
+	Args amqp.Table
+}
+
+type ExchangeOpts struct {
+	name string
+	Kind string
+	Opts Opts
+	Args amqp.Table
+}
+
+type QueueBindOpts struct {
+	Key    string
+	NoWait bool
+	Args   amqp.Table
+}
+
+type ConsumeOpts struct {
+	Opts Opts
+	Args amqp.Table
+}
+
+type PublishOpts struct {
+	Opts Opts
 }
 
 func NewBroker(address string) (b *Broker) {
 	b = &Broker{address: address}
+	b.init()
 
 	rmq := b.newRabbitMq()
 	err := rmq.connect()
@@ -29,15 +74,47 @@ func NewBroker(address string) (b *Broker) {
 	return
 }
 
+func (b *Broker) init() {
+	b.Opts = &BrokerOpts{
+		ExchangeOpts: &ExchangeOpts{
+			Kind: defaultExchangeKind,
+			Opts: defaultExchangeOpts,
+			Args: nil,
+		},
+		QueueOpts: &QueueOpts{
+			Opts: defaultQueueOpts,
+			Args: nil,
+		},
+		QueueBindOpts: &QueueBindOpts{
+			Key:    defaultQueueBindKey,
+			NoWait: false,
+			Args:   nil,
+		},
+		ConsumeOpts: &ConsumeOpts{
+			Opts: defaultConsumeOpts,
+			Args: nil,
+		},
+		PublishOpts: &PublishOpts{Opts: defaultPublishOpts},
+	}
+}
+
 func (b *Broker) RegisterSubscriber(topic string, fn interface{}) error {
 	if b.subscriber == nil {
-		b.subscriber = initSubscriber(topic, b.rabbitMQ)
+		b.subscriber = b.initSubscriber(topic, b.rabbitMQ)
 	}
 
 	typ := reflect.TypeOf(fn)
 
 	if typ.Kind() != reflect.Func {
 		return errors.New("handler must have a function type")
+	}
+
+	refFn := reflect.ValueOf(fn)
+	fnName := runtime.FuncForPC(refFn.Pointer()).Name()
+	key := fnName + refFn.String()
+
+	if _, ok := b.subscriber.ext[key]; ok {
+		return errors.New("handler func already subscribed")
 	}
 
 	tNum := typ.NumIn()
@@ -51,31 +128,59 @@ func (b *Broker) RegisterSubscriber(topic string, fn interface{}) error {
 	}
 
 	reqType := typ.In(0)
-	isVal := false
-	req := reflect.Value{}
 
-	if reqType.Kind() == reflect.Ptr {
-		req = reflect.New(reqType.Elem())
-	} else {
-		req = reflect.New(reqType)
-		isVal = true
-	}
-	if isVal {
-		req = req.Elem()
+	if reqType.Kind() != reflect.Ptr {
+		return errors.New("first argument of handler func must be pointer to struct")
 	}
 
-	reqArg, ok := req.Interface().(proto.Message)
+	_, ok := reflect.New(reqType.Elem()).Interface().(proto.Message)
 
 	if !ok {
 		return errors.New("first argument of handler func must be instance of a proto.Message interface")
 	}
 
-	h := &handler{method: reflect.ValueOf(fn), reqArg: reqArg}
+	tNum = typ.NumOut()
+
+	if tNum != 2 {
+		return errors.New("handler func must have two outcome argument")
+	}
+
+	if typ.Out(0).Kind() != reflect.Map {
+		return errors.New("first outcome argument of handler func must have a amqp.Table type")
+	}
+
+	if len(b.subscriber.handlers) > 0 {
+		if b.subscriber.handlers[0].reqEl != reqType.Elem() {
+			return errors.New("first arguments for all handlers must have equal types")
+		}
+	}
+
+	h := &handler{method: refFn, reqEl: reqType.Elem()}
 	b.subscriber.handlers = append(b.subscriber.handlers, h)
+
+	b.subscriber.ext[key] = true
 
 	return nil
 }
 
-func (b *Broker) Subscribe() error {
-	return b.subscriber.Subscribe()
+func (b *Broker) Subscribe() (err error) {
+	err = b.subscriber.Subscribe()
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+
+	select {
+	// wait on kill signal
+	case <-ch:
+	}
+
+	return
+}
+
+func (b *Broker) Publish(topic string, msg amqp.Publishing) error {
+	if b.publisher == nil {
+		b.publisher = b.newPublisher(topic)
+	}
+
+	return b.publisher.publish(topic, msg)
 }

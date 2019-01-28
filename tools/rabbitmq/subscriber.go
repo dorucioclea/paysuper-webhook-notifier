@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/golang/protobuf/proto"
 	"github.com/streadway/amqp"
+	"log"
 	"reflect"
 	"sync"
 	"time"
@@ -15,33 +16,9 @@ const (
 	defaultContentType  = "application/protobuf"
 )
 
-type QueueOpts struct {
-	Name string
-	Opts Opts
-	Args amqp.Table
-}
-
-type ExchangeOpts struct {
-	name string
-	Kind string
-	Opts Opts
-	Args amqp.Table
-}
-
-type QueueBindOpts struct {
-	Key    string
-	NoWait bool
-	Args   amqp.Table
-}
-
-type ConsumeOpts struct {
-	Opts Opts
-	Args amqp.Table
-}
-
 type handler struct {
 	method reflect.Value
-	reqArg proto.Message
+	reqEl  reflect.Type
 }
 
 type subscriber struct {
@@ -53,40 +30,33 @@ type subscriber struct {
 	mayRun bool
 	rabbit *rabbitMq
 
-	Opts struct {
+	opts struct {
 		*QueueOpts
 		*ExchangeOpts
 		*QueueBindOpts
 		*ConsumeOpts
 	}
+
+	ext map[string]bool
 }
 
-func initSubscriber(topic string, rmq *rabbitMq) (subs *subscriber) {
+func (b *Broker) initSubscriber(topic string, rmq *rabbitMq) (subs *subscriber) {
 	subs = &subscriber{
 		topic:    topic,
 		rabbit:   rmq,
 		handlers: []*handler{},
+		ext:      make(map[string]bool),
 	}
 
-	subs.Opts.ExchangeOpts = &ExchangeOpts{
-		name: topic,
-		Kind: defaultExchangeKind,
-		Opts: defaultExchangeOpts,
-		Args: nil,
-	}
-	subs.Opts.QueueOpts = &QueueOpts{
-		Name: topic + ".queue",
-		Opts: defaultQueueOpts,
-		Args: nil,
-	}
-	subs.Opts.QueueBindOpts = &QueueBindOpts{
-		Key:    defaultQueueBindKey,
-		NoWait: false,
-		Args:   nil,
-	}
-	subs.Opts.ConsumeOpts = &ConsumeOpts{
-		Opts: defaultConsumeOpts,
-		Args: nil,
+	subs.opts.ExchangeOpts = b.Opts.ExchangeOpts
+	subs.opts.QueueOpts = b.Opts.QueueOpts
+	subs.opts.QueueBindOpts = b.Opts.QueueBindOpts
+	subs.opts.ConsumeOpts = b.Opts.ConsumeOpts
+
+	subs.opts.ExchangeOpts.name = topic
+
+	if subs.opts.QueueOpts.Name == "" {
+		subs.opts.QueueOpts.Name = topic + ".queue"
 	}
 
 	return
@@ -103,7 +73,7 @@ func (s *subscriber) Subscribe() (err error) {
 
 	fn := func(msg amqp.Delivery) {
 		if msg.ContentType != defaultContentType {
-			if s.Opts.ConsumeOpts.Opts[optAutoAck] == false {
+			if s.opts.ConsumeOpts.Opts[optAutoAck] == false {
 				_ = msg.Nack(false, false)
 			}
 
@@ -111,25 +81,32 @@ func (s *subscriber) Subscribe() (err error) {
 		}
 
 		for _, h := range s.handlers {
-			err = proto.Unmarshal(msg.Body, h.reqArg)
+			st := reflect.New(h.reqEl).Interface().(proto.Message)
+			err = proto.Unmarshal(msg.Body, st)
 
 			if err != nil {
+				if s.opts.ConsumeOpts.Opts[optAutoAck] == false {
+					_ = msg.Nack(false, false)
+				}
+				log.Println("[*] Unknown message type, message skipped ")
 				continue
 			}
 
-			returnValues := h.method.Call([]reflect.Value{reflect.ValueOf(h.reqArg), reflect.ValueOf(msg.Headers)})
+			returnValues := h.method.Call([]reflect.Value{reflect.ValueOf(st), reflect.ValueOf(msg.Headers)})
 
-			if err := returnValues[0].Interface(); err != nil {
-				if s.Opts.ConsumeOpts.Opts[optAutoAck] == false {
+			if hdr, ok := returnValues[0].Interface().(amqp.Table); ok && len(hdr) > 0 {
+				msg.Headers = hdr
+			}
+
+			if err := returnValues[1].Interface(); err != nil {
+				if s.opts.ConsumeOpts.Opts[optAutoAck] == false {
 					_ = msg.Nack(false, false)
 				}
 			} else {
-				if s.Opts.ConsumeOpts.Opts[optAutoAck] == false {
+				if s.opts.ConsumeOpts.Opts[optAutoAck] == false {
 					_ = msg.Ack(false)
 				}
 			}
-
-			return
 		}
 	}
 
@@ -195,25 +172,36 @@ func (s *subscriber) resubscribe() {
 }
 
 func (s *subscriber) consume() (dls <-chan amqp.Delivery, err error) {
-	err = s.rabbit.DeclareQueue(s.Opts.QueueOpts.Name, s.Opts.QueueOpts.Opts, s.Opts.QueueOpts.Args)
-
-	if err != nil {
-		return
-	}
-
-	err = s.rabbit.QueueBind(
-		s.Opts.QueueOpts.Name,
-		s.Opts.QueueBindOpts.Key,
-		s.Opts.ExchangeOpts.name,
-		s.Opts.QueueBindOpts.NoWait,
-		s.Opts.QueueBindOpts.Args,
+	err = s.rabbit.DeclareExchange(
+		s.opts.ExchangeOpts.name,
+		s.opts.ExchangeOpts.Kind,
+		s.opts.ExchangeOpts.Opts,
+		s.opts.ExchangeOpts.Args,
 	)
 
 	if err != nil {
 		return
 	}
 
-	dls, err = s.rabbit.Consume(s.Opts.QueueOpts.Name, s.Opts.ConsumeOpts.Opts, s.Opts.ConsumeOpts.Args)
+	err = s.rabbit.DeclareQueue(s.opts.QueueOpts.Name, s.opts.QueueOpts.Opts, s.opts.QueueOpts.Args)
+
+	if err != nil {
+		return
+	}
+
+	err = s.rabbit.QueueBind(
+		s.opts.QueueOpts.Name,
+		s.opts.QueueBindOpts.Key,
+		s.opts.ExchangeOpts.name,
+		s.opts.QueueBindOpts.NoWait,
+		s.opts.QueueBindOpts.Args,
+	)
+
+	if err != nil {
+		return
+	}
+
+	dls, err = s.rabbit.Consume(s.opts.QueueOpts.Name, s.opts.ConsumeOpts.Opts, s.opts.ConsumeOpts.Args)
 
 	if err != nil {
 		return
