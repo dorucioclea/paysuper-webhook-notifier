@@ -25,6 +25,7 @@ require (
 	github.com/micro/protobuf v0.0.0-20180321161605-ebd3be6d4fdb
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/prometheus/client_golang v0.9.2 // indirect
+	github.com/prometheus/common v0.0.0-20181126121408-4724e9255275
 	github.com/sirupsen/logrus v1.3.0 // indirect
 	github.com/streadway/amqp v0.0.0-20181205114330-a314942b2fd9
 	go.uber.org/zap v1.9.1
