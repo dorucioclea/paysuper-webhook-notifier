@@ -5,11 +5,11 @@ import (
 	_ "github.com/micro/go-plugins/broker/rabbitmq"
 	_ "github.com/micro/go-plugins/registry/kubernetes"
 	_ "github.com/micro/go-plugins/transport/grpc"
+	"log"
 )
 
 func main() {
 	app := internal.NewApplication()
-	app.InitLogger()
 	app.Init()
 
 	defer func() {
@@ -19,4 +19,6 @@ func main() {
 	}()
 
 	app.Run()
+
+	log.Println("[x] The end")
 }

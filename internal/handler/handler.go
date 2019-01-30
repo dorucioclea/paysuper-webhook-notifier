@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	tools2 "github.com/ProtocolONE/payone-notifier/tools"
 	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
 	"github.com/ProtocolONE/payone-repository/pkg/proto/repository"
 	"github.com/ProtocolONE/payone-repository/tools"
+	"github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/centrifugal/gocent"
 	"github.com/micro/protobuf/ptypes"
+	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	"net/http"
 	"net/url"
@@ -43,6 +44,11 @@ const (
 	centrifugoFieldOrderId = "order_id"
 	centrifugoFieldStatus  = "status"
 	centrifugoChanelMask   = "payment:notify#%s"
+
+	RetryDlxTimeout   = 10
+	RetryExchangeName = "notify-payment-retry"
+	RetryMaxCount     = 288
+	RetryCountHeader  = "x-retry-count"
 )
 
 var (
@@ -62,7 +68,9 @@ type Handler struct {
 	repository       repository.RepositoryService
 	logger           *zap.SugaredLogger
 	centrifugoClient *gocent.Client
-	rabbitMq         *tools2.RabbitMq
+
+	retBrok *rabbitmq.Broker
+	dlv     amqp.Delivery
 }
 
 func NewHandler(
@@ -70,13 +78,15 @@ func NewHandler(
 	rep repository.RepositoryService,
 	log *zap.SugaredLogger,
 	cClient *gocent.Client,
-	rmq *tools2.RabbitMq) *Handler {
+	retBrok *rabbitmq.Broker,
+	dlv amqp.Delivery) *Handler {
 	return &Handler{
 		order:            o,
 		repository:       rep,
 		logger:           log,
 		centrifugoClient: cClient,
-		rabbitMq:         rmq,
+		retBrok:          retBrok,
+		dlv:              dlv,
 	}
 }
 
@@ -97,7 +107,7 @@ func (h *Handler) GetNotifier() (Notifier, error) {
 		}
 
 		m.FirstPaymentAt = fpt
-		h.repository.UpdateMerchant(context.TODO(), m)
+		_, err = h.repository.UpdateMerchant(context.TODO(), m)
 	}
 
 	ct, err := ptypes.TimestampProto(time.Now())
@@ -158,4 +168,23 @@ func (h *Handler) SendCentrifugoMessage(o *proto.Order) error {
 	}
 
 	return nil
+}
+
+func (h *Handler) retry() {
+	rtc := int32(0)
+
+	if v, ok := h.dlv.Headers[RetryCountHeader]; ok {
+		rtc = v.(int32)
+	}
+
+	if rtc >= RetryMaxCount {
+		h.logger.Error("[PAYONE_NOTIFIER] Republish message to RabbitMQ ended with max retry count", "order_id", h.order.Id)
+		return
+	}
+
+	err := h.retBrok.Publish(h.dlv.RoutingKey, h.order, amqp.Table{"x-retry-count": rtc + 1})
+
+	if err != nil {
+		h.logger.Error("[PAYONE_NOTIFIER] Republish message to RabbitMQ failed", "order_id", h.order.Id, "retry_count", rtc)
+	}
 }

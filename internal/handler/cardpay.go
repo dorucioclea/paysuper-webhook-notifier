@@ -10,7 +10,6 @@ import (
 	"github.com/ProtocolONE/payone-repository/pkg/constant"
 	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
 	"github.com/golang/protobuf/ptypes"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -42,24 +41,27 @@ func (n *CardPay) Notify() {
 	reqUrl, err := n.validateUrl(n.order.GetProject().GetUrlProcessPayment())
 
 	if err != nil {
-		//тут сделать что-то для повторной отправки
-		log.Println(err)
+		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
+		n.retry()
+
 		return
 	}
 
 	callback, err := n.getCallbackRequest()
 
 	if err != nil {
-		//тут сделать что-то для повторной отправки
-		log.Println(err)
+		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
+		n.retry()
+
 		return
 	}
 
 	b, err := json.Marshal(callback)
 
 	if err != nil {
-		//тут сделать что-то для повторной отправки
-		log.Println(err)
+		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
+		n.retry()
+
 		return
 	}
 
@@ -72,8 +74,9 @@ func (n *CardPay) Notify() {
 	resp, err := n.request(http.MethodPost, reqUrl.String(), b, headers)
 
 	if err != nil {
-		//тут сделать что-то для повторной отправки
-		log.Println(err)
+		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
+		n.retry()
+
 		return
 	}
 
@@ -85,11 +88,17 @@ func (n *CardPay) Notify() {
 		n.order.Status = constant.OrderStatusProjectReject
 		break
 	default:
-		//тут сделать что-то для повторной отправки
+		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
+		n.retry()
+
 		return
 	}
 
-	n.repository.UpdateOrder(context.TODO(), n.order)
+	_, err = n.repository.UpdateOrder(context.TODO(), n.order)
+
+	if err != nil {
+		n.logger.Error("[PAYONE_NOTIFIER] update order failed", err, n.order.Id, notifierHandlerXSolla)
+	}
 }
 
 func (n *CardPay) getCallbackRequest() (*proto.CardPayPaymentCallback, error) {

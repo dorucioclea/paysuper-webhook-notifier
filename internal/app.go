@@ -1,17 +1,15 @@
 package internal
 
 import (
-	"context"
 	"github.com/ProtocolONE/payone-notifier/internal/handler"
-	tools2 "github.com/ProtocolONE/payone-notifier/tools"
 	"github.com/ProtocolONE/payone-repository/pkg/constant"
 	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
 	"github.com/ProtocolONE/payone-repository/pkg/proto/repository"
 	"github.com/ProtocolONE/payone-repository/tools"
+	"github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/centrifugal/gocent"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/micro/go-micro"
-	"github.com/micro/go-micro/server"
 	k8s "github.com/micro/kubernetes/go/micro"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
@@ -31,18 +29,15 @@ type Config struct {
 }
 
 type NotifierApplication struct {
-	serviceContext context.Context
-	serviceCancel  context.CancelFunc
-
-	service          micro.Service
 	gRpcRepository   repository.RepositoryService
 	sugaredLogger    *zap.SugaredLogger
 	centrifugoClient *gocent.Client
 	httpServer       *http.Server
 	config           *Config
 
-	Logger   *zap.Logger
-	RabbitMq *tools2.RabbitMq
+	Logger      *zap.Logger
+	broker      *rabbitmq.Broker
+	retryBroker *rabbitmq.Broker
 }
 
 func NewApplication() *NotifierApplication {
@@ -51,6 +46,10 @@ func NewApplication() *NotifierApplication {
 
 func (app *NotifierApplication) Init() {
 	app.initConfig()
+	app.initLogger()
+	app.initBroker()
+
+	var service micro.Service
 
 	options := []micro.Option{
 		micro.Name(serviceName),
@@ -58,22 +57,16 @@ func (app *NotifierApplication) Init() {
 	}
 
 	if app.config.KubernetesHost == "" {
-		app.service = micro.NewService(options...)
-		log.Println("Initialize micro service")
+		service = micro.NewService(options...)
+		log.Println("[PAYONE_NOTIFIER] Initialize micro service")
 	} else {
-		app.service = k8s.NewService(options...)
-		log.Println("Initialize k8s service")
+		service = k8s.NewService(options...)
+		log.Println("[PAYONE_NOTIFIER] Initialize k8s service")
 	}
 
-	app.service.Init()
+	service.Init()
 
-	err := micro.RegisterSubscriber(constant.PayOneTopicNotifyPaymentName, app.service.Server(), app.Process, server.SubscriberQueue("queue.pubsub"))
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	app.gRpcRepository = repository.NewRepositoryService(constant.PayOneRepositoryServiceName, app.service.Client())
+	app.gRpcRepository = repository.NewRepositoryService(constant.PayOneRepositoryServiceName, service.Client())
 	app.centrifugoClient = gocent.New(
 		gocent.Config{
 			Addr:       app.config.CentrifugoUrl,
@@ -81,22 +74,9 @@ func (app *NotifierApplication) Init() {
 			HTTPClient: tools.NewLoggedHttpClient(app.sugaredLogger),
 		},
 	)
-
-	app.RabbitMq = tools2.NewRabbitMq(app.config.BrokerAddress)
-	app.RabbitMq.Opts.Queue.Args = amqp.Table{
-		"x-message-ttl":             int32(10 * 1000),
-		"x-dead-letter-exchange":    app.RabbitMq.Opts.Exchange.Name,
-		"x-dead-letter-routing-key": app.RabbitMq.Opts.RoutingKey,
-	}
-
-	_, err = app.RabbitMq.Subscribe()
-
-	if err != nil {
-		log.Fatalf("Subscribe to rabbitmq consumer failed with error: %s", err.Error())
-	}
 }
 
-func (app *NotifierApplication) InitLogger() {
+func (app *NotifierApplication) initLogger() {
 	var err error
 
 	app.Logger, err = zap.NewProduction()
@@ -116,18 +96,56 @@ func (app *NotifierApplication) initConfig() {
 	}
 }
 
+func (app *NotifierApplication) initBroker() {
+	broker, err := rabbitmq.NewBroker(app.config.BrokerAddress)
+
+	if err != nil {
+		app.sugaredLogger.Fatal("Creating RabbitMq broker failed", err, app.config.BrokerAddress)
+	}
+
+	retryBroker, err := rabbitmq.NewBroker(app.config.BrokerAddress)
+	retryBroker.Opts.QueueOpts.Args = amqp.Table{
+		"x-dead-letter-exchange":    constant.PayOneTopicNotifyPaymentName,
+		"x-message-ttl":             int32(handler.RetryDlxTimeout * 1000),
+		"x-dead-letter-routing-key": "*",
+	}
+	retryBroker.Opts.ExchangeOpts.Name = handler.RetryExchangeName
+
+	if err != nil {
+		app.sugaredLogger.Fatal("Creating RabbitMq retry broker failed", err, app.config.BrokerAddress)
+	}
+
+	err = broker.RegisterSubscriber(constant.PayOneTopicNotifyPaymentName, app.Process)
+
+	if err != nil {
+		app.sugaredLogger.Fatal("Registration RabbitMQ broker handler failed", err)
+	}
+
+	app.broker = broker
+	app.retryBroker = retryBroker
+}
+
 func (app *NotifierApplication) Run() {
-	if err := app.service.Run(); err != nil {
-		log.Fatal(err)
+	log.Println("[PAYONE_NOTIFIER] Notifier started...")
+
+	if err := app.broker.Subscribe(nil); err != nil {
+		app.sugaredLogger.Fatal(err)
 	}
 }
 
-func (app *NotifierApplication) Process(ctx context.Context, o *proto.Order) error {
-	h := handler.NewHandler(o, app.gRpcRepository, app.sugaredLogger, app.centrifugoClient, app.RabbitMq)
+func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
+	rtc := int32(0)
 
-	if o.Status == constant.OrderStatusPaymentSystemDeclined || o.Status == constant.OrderStatusPaymentSystemCanceled {
+	if v, ok := d.Headers[handler.RetryCountHeader]; ok {
+		rtc = v.(int32)
+	}
+
+	h := handler.NewHandler(o, app.gRpcRepository, app.sugaredLogger, app.centrifugoClient, app.retryBroker, d)
+
+	if rtc == 0 && (o.Status == constant.OrderStatusPaymentSystemDeclined ||
+		o.Status == constant.OrderStatusPaymentSystemCanceled) {
 		if err := h.SendCentrifugoMessage(o); err != nil {
-			log.Println("[centrifugo]: " + err.Error())
+			app.sugaredLogger.Error("[PAYONE_NOTIFIER] send message to centrifugo failed", err)
 		}
 		return nil
 	}
@@ -140,8 +158,10 @@ func (app *NotifierApplication) Process(ctx context.Context, o *proto.Order) err
 
 	n.Notify()
 
-	if err := h.SendCentrifugoMessage(o); err != nil {
-		log.Println("[centrifugo]: " + err.Error())
+	if rtc == 0 {
+		if err := h.SendCentrifugoMessage(o); err != nil {
+			app.sugaredLogger.Error("[PAYONE_NOTIFIER] send message to centrifugo failed", err)
+		}
 	}
 
 	return nil

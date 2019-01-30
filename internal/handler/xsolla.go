@@ -11,7 +11,6 @@ import (
 	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
 	"github.com/ProtocolONE/payone-repository/pkg/proto/repository"
 	"github.com/micro/protobuf/ptypes"
-	"log"
 	"net/http"
 )
 
@@ -31,8 +30,9 @@ func (n *XSolla) Notify() {
 	_, err := n.do(n.order.GetProject().GetUrlCheckAccount(), n.getCheckNotification(), NotificationActionCheck)
 
 	if err != nil {
-		//тут сделать что-то для повторной отправки
-		log.Println(err)
+		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerXSolla)
+		n.retry()
+
 		return
 	}
 
@@ -40,16 +40,18 @@ func (n *XSolla) Notify() {
 	req, err := n.getPaymentNotification()
 
 	if err != nil {
-		//тут сделать что-то для повторной отправки
-		log.Println(err)
+		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerXSolla)
+		n.retry()
+
 		return
 	}
 
 	resp, err := n.do(n.order.GetProject().GetUrlProcessPayment(), req, NotificationActionPayment)
 
 	if err != nil {
-		//тут сделать что-то для повторной отправки
-		log.Println(err)
+		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerXSolla)
+		n.retry()
+
 		return
 	}
 
@@ -60,7 +62,11 @@ func (n *XSolla) Notify() {
 		n.order.Status = constant.OrderStatusProjectReject
 	}
 
-	n.repository.UpdateOrder(context.TODO(), n.order)
+	_, err = n.repository.UpdateOrder(context.TODO(), n.order)
+
+	if err != nil {
+		n.logger.Error("[PAYONE_NOTIFIER] update order failed", err, n.order.Id, notifierHandlerXSolla)
+	}
 }
 
 func (n *XSolla) do(url string, req interface{}, action string) (*http.Response, error) {
