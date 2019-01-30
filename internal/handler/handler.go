@@ -45,7 +45,7 @@ const (
 	centrifugoFieldStatus  = "status"
 	centrifugoChanelMask   = "payment:notify#%s"
 
-	RetryDlxTimeout   = 10
+	RetryDlxTimeout   = 600
 	RetryExchangeName = "notify-payment-retry"
 	RetryMaxCount     = 288
 	RetryCountHeader  = "x-retry-count"
