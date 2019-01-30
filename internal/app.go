@@ -30,7 +30,7 @@ type Config struct {
 
 type NotifierApplication struct {
 	gRpcRepository   repository.RepositoryService
-	sugaredLogger    *zap.SugaredLogger
+	SugaredLogger    *zap.SugaredLogger
 	centrifugoClient *gocent.Client
 	httpServer       *http.Server
 	config           *Config
@@ -45,8 +45,8 @@ func NewApplication() *NotifierApplication {
 }
 
 func (app *NotifierApplication) Init() {
-	app.initConfig()
 	app.initLogger()
+	app.initConfig()
 	app.initBroker()
 
 	var service micro.Service
@@ -58,10 +58,10 @@ func (app *NotifierApplication) Init() {
 
 	if app.config.KubernetesHost == "" {
 		service = micro.NewService(options...)
-		log.Println("[PAYONE_NOTIFIER] Initialize micro service")
+		app.SugaredLogger.Info("[PAYONE_NOTIFIER] Initialize micro service")
 	} else {
 		service = k8s.NewService(options...)
-		log.Println("[PAYONE_NOTIFIER] Initialize k8s service")
+		app.SugaredLogger.Info("[PAYONE_NOTIFIER] Initialize k8s service")
 	}
 
 	service.Init()
@@ -71,7 +71,7 @@ func (app *NotifierApplication) Init() {
 		gocent.Config{
 			Addr:       app.config.CentrifugoUrl,
 			Key:        app.config.CentrifugoKey,
-			HTTPClient: tools.NewLoggedHttpClient(app.sugaredLogger),
+			HTTPClient: tools.NewLoggedHttpClient(app.SugaredLogger),
 		},
 	)
 }
@@ -85,14 +85,14 @@ func (app *NotifierApplication) initLogger() {
 		log.Fatalf("Application logger initialization failed with error: %s\n", err)
 	}
 
-	app.sugaredLogger = app.Logger.Sugar()
+	app.SugaredLogger = app.Logger.Sugar()
 }
 
 func (app *NotifierApplication) initConfig() {
 	app.config = &Config{}
 
 	if err := envconfig.Process("", app.config); err != nil {
-		log.Fatalf("Config init failed with error: %s\n", err)
+		app.SugaredLogger.Fatal("Config init failed", err)
 	}
 }
 
@@ -100,7 +100,7 @@ func (app *NotifierApplication) initBroker() {
 	broker, err := rabbitmq.NewBroker(app.config.BrokerAddress)
 
 	if err != nil {
-		app.sugaredLogger.Fatal("Creating RabbitMq broker failed", err, app.config.BrokerAddress)
+		app.SugaredLogger.Fatal("Creating RabbitMq broker failed", err, app.config.BrokerAddress)
 	}
 
 	retryBroker, err := rabbitmq.NewBroker(app.config.BrokerAddress)
@@ -112,13 +112,13 @@ func (app *NotifierApplication) initBroker() {
 	retryBroker.Opts.ExchangeOpts.Name = handler.RetryExchangeName
 
 	if err != nil {
-		app.sugaredLogger.Fatal("Creating RabbitMq retry broker failed", err, app.config.BrokerAddress)
+		app.SugaredLogger.Fatal("Creating RabbitMq retry broker failed", err, app.config.BrokerAddress)
 	}
 
 	err = broker.RegisterSubscriber(constant.PayOneTopicNotifyPaymentName, app.Process)
 
 	if err != nil {
-		app.sugaredLogger.Fatal("Registration RabbitMQ broker handler failed", err)
+		app.SugaredLogger.Fatal("Registration RabbitMQ broker handler failed", err)
 	}
 
 	app.broker = broker
@@ -126,10 +126,10 @@ func (app *NotifierApplication) initBroker() {
 }
 
 func (app *NotifierApplication) Run() {
-	log.Println("[PAYONE_NOTIFIER] Notifier started...")
+	app.SugaredLogger.Info("[PAYONE_NOTIFIER] Notifier started...")
 
 	if err := app.broker.Subscribe(nil); err != nil {
-		app.sugaredLogger.Fatal(err)
+		app.SugaredLogger.Fatal(err)
 	}
 }
 
@@ -140,12 +140,12 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 		rtc = v.(int32)
 	}
 
-	h := handler.NewHandler(o, app.gRpcRepository, app.sugaredLogger, app.centrifugoClient, app.retryBroker, d)
+	h := handler.NewHandler(o, app.gRpcRepository, app.SugaredLogger, app.centrifugoClient, app.retryBroker, d)
 
 	if rtc == 0 && (o.Status == constant.OrderStatusPaymentSystemDeclined ||
 		o.Status == constant.OrderStatusPaymentSystemCanceled) {
 		if err := h.SendCentrifugoMessage(o); err != nil {
-			app.sugaredLogger.Error("[PAYONE_NOTIFIER] send message to centrifugo failed", err)
+			app.SugaredLogger.Error("[PAYONE_NOTIFIER] send message to centrifugo failed", err)
 		}
 		return nil
 	}
@@ -160,7 +160,7 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 
 	if rtc == 0 {
 		if err := h.SendCentrifugoMessage(o); err != nil {
-			app.sugaredLogger.Error("[PAYONE_NOTIFIER] send message to centrifugo failed", err)
+			app.SugaredLogger.Error("[PAYONE_NOTIFIER] send message to centrifugo failed", err)
 		}
 	}
 

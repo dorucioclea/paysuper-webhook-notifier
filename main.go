@@ -5,7 +5,6 @@ import (
 	_ "github.com/micro/go-plugins/broker/rabbitmq"
 	_ "github.com/micro/go-plugins/registry/kubernetes"
 	_ "github.com/micro/go-plugins/transport/grpc"
-	"log"
 )
 
 func main() {
@@ -18,7 +17,11 @@ func main() {
 		}
 	}()
 
-	app.Run()
+	defer func() {
+		if err := app.SugaredLogger.Sync(); err != nil {
+			return
+		}
+	}()
 
-	log.Println("[x] The end")
+	app.Run()
 }
