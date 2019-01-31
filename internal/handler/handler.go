@@ -189,7 +189,7 @@ func (h *Handler) SendCentrifugoMessage(o *proto.Order) error {
 
 func (h *Handler) HandleError(msg string, err error, t Table) {
 	data := []interface{}{
-		"error", err.Error(),
+		"error", err,
 		"order_id", h.order.Id,
 		"notify_handler", h.order.Project.CallbackProtocol,
 	}
