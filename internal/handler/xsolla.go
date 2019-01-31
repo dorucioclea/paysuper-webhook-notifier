@@ -25,34 +25,25 @@ func newXSollaHandler(h *Handler) Notifier {
 	return &XSolla{Handler: h}
 }
 
-func (n *XSolla) Notify() {
+func (n *XSolla) Notify() error {
 	// do check notify
 	_, err := n.do(n.order.GetProject().GetUrlCheckAccount(), n.getCheckNotification(), NotificationActionCheck)
 
 	if err != nil {
-		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerXSolla)
-		n.retry()
-
-		return
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	// do payment notify
 	req, err := n.getPaymentNotification()
 
 	if err != nil {
-		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerXSolla)
-		n.retry()
-
-		return
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	resp, err := n.do(n.order.GetProject().GetUrlProcessPayment(), req, NotificationActionPayment)
 
 	if err != nil {
-		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerXSolla)
-		n.retry()
-
-		return
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
@@ -62,11 +53,11 @@ func (n *XSolla) Notify() {
 		n.order.Status = constant.OrderStatusProjectReject
 	}
 
-	_, err = n.repository.UpdateOrder(context.TODO(), n.order)
-
-	if err != nil {
-		n.logger.Error("[PAYONE_NOTIFIER] update order failed", err, n.order.Id, notifierHandlerXSolla)
+	if _, err := n.repository.UpdateOrder(context.TODO(), n.order); err != nil {
+		n.HandleError(loggerErrorNotificationUpdate, err, nil)
 	}
+
+	return nil
 }
 
 func (n *XSolla) do(url string, req interface{}, action string) (*http.Response, error) {

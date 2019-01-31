@@ -37,32 +37,23 @@ func newCardPayHandler(h *Handler) Notifier {
 	return &CardPay{Handler: h}
 }
 
-func (n *CardPay) Notify() {
+func (n *CardPay) Notify() error {
 	reqUrl, err := n.validateUrl(n.order.GetProject().GetUrlProcessPayment())
 
 	if err != nil {
-		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
-		n.retry()
-
-		return
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	callback, err := n.getCallbackRequest()
 
 	if err != nil {
-		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
-		n.retry()
-
-		return
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	b, err := json.Marshal(callback)
 
 	if err != nil {
-		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
-		n.retry()
-
-		return
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	headers := map[string]string{
@@ -74,10 +65,7 @@ func (n *CardPay) Notify() {
 	resp, err := n.request(http.MethodPost, reqUrl.String(), b, headers)
 
 	if err != nil {
-		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
-		n.retry()
-
-		return
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	switch resp.StatusCode {
@@ -88,17 +76,14 @@ func (n *CardPay) Notify() {
 		n.order.Status = constant.OrderStatusProjectReject
 		break
 	default:
-		n.logger.Error("[PAYONE_NOTIFIER] Project notification failed", err, n.order.Id, notifierHandlerCardPay)
-		n.retry()
-
-		return
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
-	_, err = n.repository.UpdateOrder(context.TODO(), n.order)
-
-	if err != nil {
-		n.logger.Error("[PAYONE_NOTIFIER] update order failed", err, n.order.Id, notifierHandlerXSolla)
+	if _, err = n.repository.UpdateOrder(context.TODO(), n.order); err != nil {
+		n.HandleError(loggerErrorNotificationUpdate, err, nil)
 	}
+
+	return nil
 }
 
 func (n *CardPay) getCallbackRequest() (*proto.CardPayPaymentCallback, error) {

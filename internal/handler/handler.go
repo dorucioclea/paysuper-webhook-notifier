@@ -31,6 +31,12 @@ const (
 	errorEmptyUrl                              = "empty string in url"
 	errorNotificationNeedRetry                 = "bad project handler response notification request mark for new send (ID: %s, Action: %s)\n"
 
+	loggerErrorNotificationRetry       = "[PAYONE_NOTIFIER] Project notification failed"
+	loggerErrorNotificationUpdate      = "[PAYONE_NOTIFIER] Repository service return error. Update order failed"
+	loggerNotificationRetryEnded       = "[PAYONE_NOTIFIER] Republishing message to RabbitMQ ended with max retry count"
+	loggerErrorNotificationRetryFailed = "[PAYONE_NOTIFIER] Republish message to RabbitMQ failed"
+	LoggerNotificationCentrifugo       = "[PAYONE_NOTIFIER] Send message to centrifugo failed"
+
 	MIMEApplicationJSON = "application/json"
 
 	HeaderAccept        = "Accept"
@@ -48,7 +54,7 @@ const (
 	RetryDlxTimeout   = 600
 	RetryExchangeName = "notify-payment-retry"
 	RetryMaxCount     = 288
-	RetryCountHeader  = "x-retry-count"
+	retryCountHeader  = "x-retry-count"
 )
 
 var (
@@ -59,8 +65,10 @@ var (
 	}
 )
 
+type Table map[string]interface{}
+
 type Notifier interface {
-	Notify()
+	Notify() error
 }
 
 type Handler struct {
@@ -69,8 +77,9 @@ type Handler struct {
 	logger           *zap.SugaredLogger
 	centrifugoClient *gocent.Client
 
-	retBrok *rabbitmq.Broker
-	dlv     amqp.Delivery
+	retBrok    *rabbitmq.Broker
+	dlv        amqp.Delivery
+	RetryCount int32
 }
 
 func NewHandler(
@@ -79,7 +88,14 @@ func NewHandler(
 	log *zap.SugaredLogger,
 	cClient *gocent.Client,
 	retBrok *rabbitmq.Broker,
-	dlv amqp.Delivery) *Handler {
+	dlv amqp.Delivery,
+) *Handler {
+	rtc := int32(0)
+
+	if v, ok := dlv.Headers[retryCountHeader]; ok {
+		rtc = v.(int32)
+	}
+
 	return &Handler{
 		order:            o,
 		repository:       rep,
@@ -87,6 +103,7 @@ func NewHandler(
 		centrifugoClient: cClient,
 		retBrok:          retBrok,
 		dlv:              dlv,
+		RetryCount:       rtc,
 	}
 }
 
@@ -170,21 +187,38 @@ func (h *Handler) SendCentrifugoMessage(o *proto.Order) error {
 	return nil
 }
 
-func (h *Handler) retry() {
-	rtc := int32(0)
-
-	if v, ok := h.dlv.Headers[RetryCountHeader]; ok {
-		rtc = v.(int32)
+func (h *Handler) HandleError(msg string, err error, t Table) {
+	data := []interface{}{
+		"error", err.Error(),
+		"order_id", h.order.Id,
+		"notify_handler", h.order.Project.CallbackProtocol,
 	}
 
-	if rtc >= RetryMaxCount {
-		h.logger.Error("[PAYONE_NOTIFIER] Republish message to RabbitMQ ended with max retry count", "order_id", h.order.Id)
+	if t != nil && len(t) > 0 {
+		for k, v := range t {
+			data = append(data, k, v)
+		}
+	}
+
+	h.logger.Errorw(msg, data...)
+}
+
+func (h *Handler) handleErrorWithRetry(msg string, err error, t Table) error {
+	h.HandleError(msg, err, t)
+	return h.retry()
+}
+
+func (h *Handler) retry() (err error) {
+	if h.RetryCount >= RetryMaxCount {
+		h.logger.Infow(loggerNotificationRetryEnded, "order_id", h.order.Id)
 		return
 	}
 
-	err := h.retBrok.Publish(h.dlv.RoutingKey, h.order, amqp.Table{"x-retry-count": rtc + 1})
+	err = h.retBrok.Publish(h.dlv.RoutingKey, h.order, amqp.Table{"x-retry-count": h.RetryCount + 1})
 
 	if err != nil {
-		h.logger.Error("[PAYONE_NOTIFIER] Republish message to RabbitMQ failed", "order_id", h.order.Id, "retry_count", rtc)
+		h.HandleError(loggerErrorNotificationRetryFailed, err, Table{"retry_count": h.RetryCount})
 	}
+
+	return
 }
