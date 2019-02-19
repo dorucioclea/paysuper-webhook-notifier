@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
-	"github.com/ProtocolONE/payone-repository/pkg/proto/repository"
+	proto "github.com/ProtocolONE/payone-billing-service/pkg/proto/billing"
+	"github.com/ProtocolONE/payone-billing-service/pkg/proto/grpc"
 	"github.com/ProtocolONE/payone-repository/tools"
 	"github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/centrifugal/gocent"
@@ -16,7 +16,6 @@ import (
 	"go.uber.org/zap"
 	"net/http"
 	"net/url"
-	"time"
 )
 
 const (
@@ -73,8 +72,7 @@ type Notifier interface {
 
 type Handler struct {
 	order            *proto.Order
-	repository       repository.RepositoryService
-	logger           *zap.SugaredLogger
+	repository       grpc.BillingService
 	centrifugoClient *gocent.Client
 
 	retBrok    *rabbitmq.Broker
@@ -84,8 +82,7 @@ type Handler struct {
 
 func NewHandler(
 	o *proto.Order,
-	rep repository.RepositoryService,
-	log *zap.SugaredLogger,
+	rep grpc.BillingService,
 	cClient *gocent.Client,
 	retBrok *rabbitmq.Broker,
 	dlv amqp.Delivery,
@@ -99,7 +96,6 @@ func NewHandler(
 	return &Handler{
 		order:            o,
 		repository:       rep,
-		logger:           log,
 		centrifugoClient: cClient,
 		retBrok:          retBrok,
 		dlv:              dlv,
@@ -114,26 +110,18 @@ func (h *Handler) GetNotifier() (Notifier, error) {
 		return nil, errors.New(errorNotifierHandlerNotFound)
 	}
 
-	m := h.order.GetProject().GetMerchant()
+	m := h.order.Project.Merchant
 
 	if m.GetFirstPaymentAt() == nil {
-		fpt, err := ptypes.TimestampProto(time.Now())
+		m.FirstPaymentAt = ptypes.TimestampNow()
+		_, err := h.repository.UpdateMerchant(context.TODO(), m)
 
 		if err != nil {
-			return nil, err
+			h.HandleError("gRpc call to update merchant failed", err, Table{"merchant": m})
 		}
-
-		m.FirstPaymentAt = fpt
-		_, err = h.repository.UpdateMerchant(context.TODO(), m)
 	}
 
-	ct, err := ptypes.TimestampProto(time.Now())
-
-	if err != nil {
-		return nil, err
-	}
-
-	h.order.ProjectLastRequestedAt = ct
+	h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
 
 	return handler(h), nil
 }
@@ -153,7 +141,7 @@ func (h *Handler) validateUrl(cUrl string) (*url.URL, error) {
 }
 
 func (h *Handler) request(method, url string, req []byte, headers map[string]string) (*http.Response, error) {
-	client := tools.NewLoggedHttpClient(h.logger)
+	client := tools.NewLoggedHttpClient(zap.S())
 	httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(req))
 
 	if err != nil {
@@ -200,7 +188,7 @@ func (h *Handler) HandleError(msg string, err error, t Table) {
 		}
 	}
 
-	h.logger.Errorw(msg, data...)
+	zap.S().Errorw(msg, data...)
 }
 
 func (h *Handler) handleErrorWithRetry(msg string, err error, t Table) error {
@@ -210,7 +198,7 @@ func (h *Handler) handleErrorWithRetry(msg string, err error, t Table) error {
 
 func (h *Handler) retry() (err error) {
 	if h.RetryCount >= RetryMaxCount {
-		h.logger.Infow(loggerNotificationRetryEnded, "order_id", h.order.Id)
+		zap.S().Infow(loggerNotificationRetryEnded, "order_id", h.order.Id)
 		return
 	}
 

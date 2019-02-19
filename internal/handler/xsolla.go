@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ProtocolONE/payone-billing-service/pkg/proto/grpc"
 	"github.com/ProtocolONE/payone-repository/pkg/constant"
 	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
-	"github.com/ProtocolONE/payone-repository/pkg/proto/repository"
 	"github.com/micro/protobuf/ptypes"
 	"net/http"
 )
@@ -116,22 +116,11 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 		return nil, err
 	}
 
-	cReq := &repository.ConvertRequest{
-		CurrencyFrom: n.order.PaymentMethodOutcomeCurrency.CodeInt,
-		CurrencyTo:   n.order.GetProject().GetMerchant().GetCurrency().GetCodeInt(),
-	}
-
 	payoutAmount := n.order.GetAmountOutMerchantAccountingCurrency() -
 		n.order.GetPspFeeAmount().GetAmountMerchantCurrency() - n.order.GetPaymentSystemFeeAmount().AmountMerchantCurrency
 
-	if n.order.GetVatAmount() > 0 {
-		cReq.Amount = n.order.GetVatAmount()
-
-		if resp, err := n.repository.ConvertAmount(context.TODO(), cReq); err != nil {
-			return nil, err
-		} else {
-			payoutAmount -= resp.Amount
-		}
+	if n.order.VatAmount != nil && n.order.VatAmount.AmountMerchantCurrency > 0 {
+			payoutAmount -= n.order.VatAmount.AmountMerchantCurrency
 	}
 
 	pn := &proto.XSollaPaymentNotification{
@@ -175,7 +164,7 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 			Id:            n.order.GetId(),
 			ExternalId:    n.order.GetProjectOrderId(),
 			PaymentDate:   tDate.Format(constant.PaymentSystemCardPayDateFormat),
-			PaymentMethod: n.order.GetPaymentMethod().GetGroupAlias(),
+			PaymentMethod: n.order.GetPaymentMethod().GetGroup(),
 			DryRun:        0,
 		},
 		PaymentDetails: &proto.XSollaPaymentDetails{
@@ -185,7 +174,7 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 			},
 			Vat: &proto.XSollaVat{
 				Currency: n.order.GetPaymentMethodIncomeCurrency().CodeA3,
-				Amount:   n.order.GetVatAmount(),
+				Amount:   n.order.VatAmount.AmountPaymentMethodCurrency,
 			},
 			Payout: &proto.XSollaPayout{
 				Currency: n.order.GetProject().GetMerchant().GetCurrency().GetCodeA3(),
@@ -207,10 +196,15 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 		CustomParameters: n.order.GetProjectParams(),
 	}
 
+	cReq := &grpc.ConvertRateRequest{
+		From: n.order.PaymentMethodOutcomeCurrency.CodeInt,
+		To:   n.order.GetProject().GetMerchant().GetCurrency().GetCodeInt(),
+	}
+
 	if cRate, err := n.repository.GetConvertRate(context.TODO(), cReq); err != nil {
 		return nil, err
 	} else {
-		pn.PaymentDetails.PayoutCurrencyRate = cRate.Amount
+		pn.PaymentDetails.PayoutCurrencyRate = cRate.Rate
 	}
 
 	return pn, nil

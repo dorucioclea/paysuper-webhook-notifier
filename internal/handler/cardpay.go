@@ -88,7 +88,7 @@ func (n *CardPay) Notify() error {
 
 func (n *CardPay) getCallbackRequest() (*proto.CardPayPaymentCallback, error) {
 	req := &proto.CardPayPaymentCallback{
-		PaymentMethod: n.order.GetPaymentMethod().GetGroupAlias(),
+		PaymentMethod: n.order.GetPaymentMethod().GetGroup(),
 		CallbackTime:  time.Now().Format(constant.PaymentSystemCardPayDateFormat),
 		MerchantOrder: &proto.CardPayMerchantOrder{
 			Id:          n.order.GetProjectOrderId(),

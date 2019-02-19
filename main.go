@@ -11,17 +11,6 @@ func main() {
 	app := internal.NewApplication()
 	app.Init()
 
-	defer func() {
-		if err := app.Logger.Sync(); err != nil {
-			return
-		}
-	}()
-
-	defer func() {
-		if err := app.SugaredLogger.Sync(); err != nil {
-			return
-		}
-	}()
-
+	defer app.Stop()
 	app.Run()
 }
