@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ProtocolONE/payone-billing-service/pkg/proto/grpc"
-	"github.com/ProtocolONE/payone-repository/pkg/constant"
-	proto "github.com/ProtocolONE/payone-repository/pkg/proto/billing"
 	"github.com/micro/protobuf/ptypes"
+	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
+	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	proto "github.com/paysuper/paysuper-recurring-repository/pkg/proto/entity"
 	"net/http"
 )
 

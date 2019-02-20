@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"github.com/ProtocolONE/payone-repository/pkg/constant"
+	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
 )
 
 type Empty struct {

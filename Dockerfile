@@ -1,4 +1,4 @@
-FROM golang:1.11.2-alpine AS builder
+FROM golang:1.11-alpine AS builder
 
 RUN apk add bash ca-certificates git
 
@@ -13,6 +13,6 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . ./
-RUN CGO_ENABLED=0 GOOS=linux go build -a -o $GOPATH/bin/payone_notifier
+RUN CGO_ENABLED=0 GOOS=linux go build -a -o $GOPATH/bin/paysuper_webhook_notifier
 
-ENTRYPOINT $GOPATH/bin/payone_notifier
+ENTRYPOINT $GOPATH/bin/paysuper_webhook_notifier

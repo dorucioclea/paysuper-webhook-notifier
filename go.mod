@@ -1,11 +1,9 @@
-module github.com/ProtocolONE/payone-notifier
+module github.com/paysuper/paysuper-webhook-notifier
 
 require (
 	github.com/FZambia/sentinel v1.0.0 // indirect
 	github.com/InVisionApp/go-health v2.1.0+incompatible
 	github.com/ProtocolONE/go-plugins v0.17.1 // indirect
-	github.com/ProtocolONE/payone-billing-service v0.0.0-20190219151733-1838b09985a4
-	github.com/ProtocolONE/payone-repository v1.0.87
 	github.com/ProtocolONE/rabbitmq v0.0.0-20190129162844-9f24367e139c
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
@@ -26,6 +24,8 @@ require (
 	github.com/micro/kubernetes v0.2.0
 	github.com/micro/protobuf v0.0.0-20180321161605-ebd3be6d4fdb
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
+	github.com/paysuper/paysuper-billing-server v0.0.0-20190220171714-5b355ab0d2d1
+	github.com/paysuper/paysuper-recurring-repository v1.0.95
 	github.com/prometheus/common v0.0.0-20181126121408-4724e9255275
 	github.com/sirupsen/logrus v1.3.0 // indirect
 	github.com/streadway/amqp v0.0.0-20181205114330-a314942b2fd9
