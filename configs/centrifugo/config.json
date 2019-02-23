@@ -5,7 +5,7 @@
   "history_lifetime": 30,
   "namespaces": [
     {
-      "name": "payment",
+      "name": "paysuper",
       "presence": true
     }
   ]

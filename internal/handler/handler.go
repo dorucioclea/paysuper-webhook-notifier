@@ -48,7 +48,7 @@ const (
 
 	centrifugoFieldOrderId = "order_id"
 	centrifugoFieldStatus  = "status"
-	centrifugoChanelMask   = "payment:notify#%s"
+	centrifugoChanelMask   = "paysuper:order#%s"
 
 	RetryDlxTimeout   = 600
 	RetryExchangeName = "notify-payment-retry"
