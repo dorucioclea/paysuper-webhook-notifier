@@ -8,6 +8,7 @@ import (
 	"github.com/centrifugal/gocent"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/micro/go-micro"
+	k8s "github.com/micro/kubernetes/go/micro"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
@@ -30,6 +31,7 @@ type Config struct {
 	CentrifugoKey string `envconfig:"CENTRIFUGO_KEY" required:"true"`
 	BrokerAddress string `envconfig:"MICRO_BROKER_ADDRESS" required:"true"`
 	MetricsPort   string `envconfig:"METRICS_PORT" required:"false" default:"8087"`
+	MicroRegistry string `envconfig:"MICRO_REGISTRY" required:"false"`
 }
 
 type NotifierApplication struct {
@@ -61,10 +63,19 @@ func (app *NotifierApplication) Init() {
 	options := []micro.Option{
 		micro.Name(serviceName),
 		micro.Version(constant.PayOneMicroserviceVersion),
+		micro.AfterStop(func() error {
+			app.log.Info("Micro service stopped")
+			return nil
+		}),
 	}
 
-	service = micro.NewService(options...)
-	app.log.Info("[PAYONE_NOTIFIER] Initialize micro service")
+	if app.cfg.MicroRegistry == constant.RegistryKubernetes {
+		service = k8s.NewService(options...)
+		app.log.Info("[PAYSUPER_REPOSITORY] Initialize k8s service")
+	} else {
+		service = micro.NewService(options...)
+		app.log.Info("[PAYSUPER_REPOSITORY] Initialize micro service")
+	}
 
 	service.Init()
 
