@@ -1,9 +1,6 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-cf:
-  url: https://cf.tst.protocol.one
-
 backend:
   name: gobackend
   role: gobackend
@@ -16,6 +13,10 @@ backend:
     type: ClusterIP
     port: 8080
     protocol: TCP
+  env:
+    - BROKER_ADDRESS
+    - CENTRIFUGO_URL
+    - CENTRIFUGO_KEY
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
