@@ -29,6 +29,7 @@ const (
 type Config struct {
 	CentrifugoUrl string `envconfig:"CENTRIFUGO_URL" required:"true"`
 	CentrifugoKey string `envconfig:"CENTRIFUGO_KEY" required:"true"`
+	BrokerAddress string `envconfig:"BROKER_ADDRESS" required:"true"`
 	MetricsPort   string `envconfig:"METRICS_PORT" required:"false" default:"8087"`
 	MicroRegistry string `envconfig:"MICRO_REGISTRY" required:"false"`
 }
