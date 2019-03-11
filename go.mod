@@ -17,7 +17,7 @@ require (
 	github.com/micro/go-plugins v0.25.0
 	github.com/micro/kubernetes v0.7.0
 	github.com/micro/protobuf v0.0.0-20180321161605-ebd3be6d4fdb
-	github.com/paysuper/paysuper-billing-server v0.0.0-20190220171714-5b355ab0d2d1
+	github.com/paysuper/paysuper-billing-server v0.0.0-20190301164215-af2ad2208b88
 	github.com/paysuper/paysuper-recurring-repository v1.0.100
 	github.com/prometheus/common v0.2.0
 	github.com/streadway/amqp v0.0.0-20181205114330-a314942b2fd9

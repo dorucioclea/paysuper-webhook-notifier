@@ -631,8 +631,11 @@ github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FI
 github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
 github.com/paysuper/paysuper-billing-server v0.0.0-20190220171714-5b355ab0d2d1 h1:0RlBuNn1Rwor6vSvvfqkqoDzYYHPa3Trd1ORbAxu0YY=
 github.com/paysuper/paysuper-billing-server v0.0.0-20190220171714-5b355ab0d2d1/go.mod h1:EpoJfu9YeuJHQM0MmOgQL+kablR8XgeOMuAFWJmoLbM=
+github.com/paysuper/paysuper-billing-server v0.0.0-20190301164215-af2ad2208b88 h1:usdaKKRCi3B3rnFihfH0U+8/dCdEnop2yPSgf7T2Qsg=
+github.com/paysuper/paysuper-billing-server v0.0.0-20190301164215-af2ad2208b88/go.mod h1:uB20OXuJp3fGUB37vxnTwX9rgpfQYqjEI8ddltZj3uM=
 github.com/paysuper/paysuper-recurring-repository v1.0.95 h1:Dc5GQGEyF/ucw7qy/WqArwtEXs15M5+kAmjrG7ICQqE=
 github.com/paysuper/paysuper-recurring-repository v1.0.95/go.mod h1:AMfAm/DunBcDf1sifp0Xc26NEhFy9Y5rUrJ6CWvFi8A=
+github.com/paysuper/paysuper-recurring-repository v1.0.99/go.mod h1:5jCFa70wHevei2I6zA0gg5DWSTDIe17P4OPbTFZCMFs=
 github.com/paysuper/paysuper-recurring-repository v1.0.100 h1:nsE84cYRVX14focRL4I1xSx1c5al24j5ghc49UijG1s=
 github.com/paysuper/paysuper-recurring-repository v1.0.100/go.mod h1:5jCFa70wHevei2I6zA0gg5DWSTDIe17P4OPbTFZCMFs=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=
@@ -909,6 +912,7 @@ golang.org/x/sys v0.0.0-20190129075346-302c3dd5f1cc/go.mod h1:STP8DvDyc/dI5b8T5h
 golang.org/x/sys v0.0.0-20190130150945-aca44879d564/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20190203050204-7ae0202eb74c/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20190204203706-41f3e6584952/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+golang.org/x/sys v0.0.0-20190213121743-983097b1a8a3 h1:+KlxhGbYkFs8lMfwKn+2ojry1ID5eBSMXprS2u/wqCE=
 golang.org/x/sys v0.0.0-20190213121743-983097b1a8a3/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/text v0.3.0 h1:g61tztE5qeGQ89tm6NTjjM9VPIm088od1l6aSorWRWg=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=

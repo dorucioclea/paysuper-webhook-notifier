@@ -177,19 +177,19 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 				Amount:   n.order.VatAmount.AmountPaymentMethodCurrency,
 			},
 			Payout: &proto.XSollaPayout{
-				Currency: n.order.GetProject().GetMerchant().GetCurrency().GetCodeA3(),
+				Currency: n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeA3,
 				Amount:   payoutAmount,
 			},
 			XsollaFee: &proto.XSollaXsollaFee{
-				Currency: n.order.GetProject().GetMerchant().GetCurrency().GetCodeA3(),
+				Currency: n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeA3,
 				Amount:   n.order.GetPspFeeAmount().GetAmountMerchantCurrency(),
 			},
 			PaymentMethodFee: &proto.XSollaPaymentMethodFee{
-				Currency: n.order.GetProject().GetMerchant().GetCurrency().GetCodeA3(),
+				Currency: n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeA3,
 				Amount:   n.order.GetPaymentSystemFeeAmount().GetAmountMerchantCurrency(),
 			},
 			RepatriationCommission: &proto.XSollaRepatriationCommission{
-				Currency: n.order.GetProject().GetMerchant().GetCurrency().GetCodeA3(),
+				Currency: n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeA3,
 				Amount:   n.order.GetToPayerFeeAmount().GetAmountMerchantCurrency(),
 			},
 		},
@@ -198,7 +198,7 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 
 	cReq := &grpc.ConvertRateRequest{
 		From: n.order.PaymentMethodOutcomeCurrency.CodeInt,
-		To:   n.order.GetProject().GetMerchant().GetCurrency().GetCodeInt(),
+		To:   n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeInt,
 	}
 
 	if cRate, err := n.repository.GetConvertRate(context.TODO(), cReq); err != nil {
