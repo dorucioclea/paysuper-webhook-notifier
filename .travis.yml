@@ -1,20 +1,33 @@
-env:
-  global:
-  - REPO=p1hub/payone-notifier
-  - secure: IFsNiS/A+fH7mBAq6rxskfoZVNX7tJCE0XhkXQ/cxpZfbkyey6MLgYowgq1tJquhy4cwSrO2ZH0N+SDd+z6IzYF0C8qcUwUKzioYmHuhSBEzoebE00kqIQebz7caHV05I8vv8gngFc419jEZlgJMxAUztKTWo2mC+dp5cIzezG4zfOjQJ4/whgRV3XlzpI8vnJqkkCe3g2DkBZm2exq1ewQZDskUtFeHEsclVg0aGyfueN5zOs04G1wGWWztSyWm3QTq63pmp5jVkVPJ9P4/TBpTXGCeoqGUJHuucFyR9NMzK8N4BNpnZh9lE5kbmve32o/KP6cdH0MrmGUwXuIIzTj2ipGs0AAbDeKCT3Tf0HzGwImpCuVnZGPhg2UDJGcpHL3nxHcL8TFXpXXjWR7qKSebSNrMVxr170+yzwLP5SUidceeM/AoA6KbmIWuRsYsRY4YEqJYO+sDOl6n+BA4xcZ7/nici321DmhWOazMuusoTg4pFfYt54vFJ8McN3Tg9R4HIuwWE2S422NZ7V343bUUnvVjX+xeAF8pXy+YViXVk3OkgsBjQ9aRVVDGMj4F/wHpY74deuzo4VtdyMONnEh7en/nA5vlY8rrI+sOYOvHixM3QU/srCWypM5OcPb1lKNV3eBgNHtDAnubXaf1ZG2NDzcerDyBUthL2n8T75g=
-  - secure: pOMeZCipfVSftslgmHIEyJ0vm23lf5HMnJfeS3zN22nbD5etg1yf+p+v11Rq7CuWOlbVZzwEJ7KgetECM1MPQt+En+5jfzOTpDCjZo3mCQVR+7kA9fjESUZvZgFmmOrGDBe3R3vVkDkn2Cua7bi3S57Oum1Eka76o+jcyD2RVF0ZorB0wAClRUIzJhrFrbsndWOR/3Xx32efBlJrqdKK4UdhI5l5hEIGs0TxBBajbqs+ci/mRUM5icfhBNPWUgy2B2maIZOsW4MCazzt+GFTd59+jzWLgw9ICys1Su1bLd+ZsT2uOHL9ZrwWRhoA5S/T70mwCgsZ/XXCW527KhNX59k1l+IJbeh/wV6eLSS6vF9qlEXUY2PVJbKeFLqmpIIPtwWj1JvMGC/1sO3AOBQWypH7tGIehmytq1ozYnjgT/xVcrsN1eR2k2lVvp1cla9F+vc8bDFvDnyZ71+ZKd7DhUs/eHGJrEtFNGBuLlv905kPugQnN/T6Bmjw0nx74t7dCQGl0+ODPmOyEDEop+Q/ZenahKzUfGHz3DhajmktDMK0YWTqRkdSAegW1UH0e5M4LBD4vrmTPIwVP15avovkt3ttPN/011TDZzyzy17lkEPXlyY4XClBY9UvYuVQpWgDbrkd1kLCQpJEaGVzK61h/ua89UjpN+V1rxpHhv+bBjk=
-sudo: true
-services:
-- docker
+language: go
+sudo: false
+go:
+- 1.11.x
+
+stages:
+  - test
+  - name: deploy 
+    if: branch = master 
+
 jobs:
   include:
-  - stage: Building images for payone-notifier
+  - stage: test
+    install: true
     script:
-    - export TAG=`if [[ $TRAVIS_BRANCH == "master" ]]; then echo "latest"; else echo
-      $TRAVIS_TAG; fi`
-    - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
-    - docker build -t "$REPO:$TAG" -t "$REPO:0.0.$TRAVIS_BUILD_NUMBER" .
-    - docker push $REPO
+    - echo "tests here"
+    #- go test ./... -coverprofile=coverage.out -covermode=atomic -p=1
+    #after_success:
+    #- bash <(curl -s https://codecov.io/bash)
+  - stage: deploy
+    services: docker
+    install: true
+    script:
+    - docker run -it
+      -e JENKINS_AUTH_TOKEN=$JENKINS_AUTH_TOKEN
+      -e JENKINS_BUILD_TOKEN=$JENKINS_BUILD_TOKEN
+      -e JENKINS_BUILD_PROJECT=$TRAVIS_REPO_SLUG
+      -e JENKINS_BUILD_BRANCH=$TRAVIS_BRANCH
+      p1hub/p1jenkinstrigger 
+
 notifications:
   email: false
   slack:
