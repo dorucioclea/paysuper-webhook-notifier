@@ -1,14 +1,32 @@
 version: '3.6'
 
 services:
+  paysuper-webhook-notifier:
+    build: .
+    container_name: paysuper-webhook-notifier
+    networks:
+      - p1devnet
+    restart: unless-stopped
+    depends_on:
+      - rabbitmq
+      - centrifugo
+    ports:
+      - "8087:8087"
+    tty: true
+    environment:
+      BROKER_ADDRESS: "amqp://rabbitmq:5672"
+      CENTRIFUGO_URL: "centrifugo:8000"
+      CENTRIFUGO_KEY: "api_secret"
+
   rabbitmq:
     image: "rabbitmq:3-management"
-    hostname: "rabbit"
     ports:
       - "15672:15672"
       - "5672:5672"
     labels:
       name: "rabbitmq"
+    networks:
+      - p1devnet
       
   consul:
     image: consul:latest
