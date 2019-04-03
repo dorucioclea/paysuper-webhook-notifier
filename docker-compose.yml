@@ -14,7 +14,7 @@ services:
       - "8087:8087"
     tty: true
     environment:
-      BROKER_ADDRESS: "amqp://rabbitmq:5672"
+      BROKER_ADDRESS: "amqp://rabbitmq"
       CENTRIFUGO_URL: "centrifugo:8000"
       CENTRIFUGO_KEY: "api_secret"
 
