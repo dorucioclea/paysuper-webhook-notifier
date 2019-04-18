@@ -15,9 +15,10 @@ func newEmptyHandler(h *Handler) Notifier {
 
 func (n *Empty) Notify() error {
 	n.order.Status = constant.OrderStatusProjectComplete
+	_, err := n.repository.UpdateOrder(context.TODO(), n.order)
 
-	if _, err := n.repository.UpdateOrder(context.TODO(), n.order); err != nil {
-		n.HandleError(loggerErrorNotificationUpdate, err, nil)
+	if err != nil {
+		return n.handleErrorWithRetry(loggerErrorNotificationUpdate, err, nil)
 	}
 
 	return nil

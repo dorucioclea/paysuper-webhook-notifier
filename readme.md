@@ -1,21 +1,13 @@
-Documentation will be soon
+WebHook Notification Service
+====
 
-0. Когда мы хотим отправлять мы шлем в test и там, если всё хорошо
-то событие обработают, а если плохо (т.е. basic.reject, basic.nack false). Никаких
-приколов с временем в бащовой очереди нет.
+[![Build Status](https://travis-ci.org/paysuper/paysuper-webhook-notifier.svg?branch=master)](https://travis-ci.org/paysuper/paysuper-webhook-notifier) 
+[![codecov](https://codecov.io/gh/paysuper/paysuper-webhook-notifier/branch/master/graph/badge.svg)](https://codecov.io/gh/paysuper/paysuper-webhook-notifier)
 
-1. exchange test (topic) - publisher
-2. queue test.queue - subscriber
+This service is rabbitmq consumer for sending other notification from PaySuper to projects.
+Example of sending notifications:
 
-"x-dead-letter-exchange": "test.timeout10",
-
-3. exchange test.timeout10 (topic)
-4. queue test.queue.timeout10
-
-"x-dead-letter-exchange":    "test",
-"x-dead-letter-routing-key": "*",
-
-теперь если на шаге 2 я не смог обоработать я должен поставить сообщению
-заголовок ттл и сделать ему реджект.
-
-5. мне надо бинд 3 и 4 
+1. Payment complete request
+2. Refund complete request
+3. User account validation
+4. And other    

@@ -104,7 +104,7 @@ func (n *XSolla) getCheckNotification() *proto.XSollaCheckNotification {
 			Phone:   n.order.GetPayerData().GetPhone(),
 			Email:   n.order.GetPayerData().GetEmail(),
 			Name:    n.order.ProjectAccount,
-			Country: n.order.GetPayerData().GetCountryCodeA2(),
+			Country: n.order.GetPayerData().GetCountry(),
 		},
 	}
 }
@@ -119,20 +119,13 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 	payoutAmount := n.order.GetAmountOutMerchantAccountingCurrency() -
 		n.order.GetPspFeeAmount().GetAmountMerchantCurrency() - n.order.GetPaymentSystemFeeAmount().AmountMerchantCurrency
 
-	if n.order.VatAmount != nil && n.order.VatAmount.AmountMerchantCurrency > 0 {
-			payoutAmount -= n.order.VatAmount.AmountMerchantCurrency
+	if n.order.Tax != nil && n.order.Tax.Amount > 0 {
+			payoutAmount -= float64(n.order.Tax.Amount)
 	}
 
 	pn := &proto.XSollaPaymentNotification{
 		NotificationType: xsollaPaymentNotificationType,
 		Purchase: &proto.XSollaPurchase{
-			VirtualCurrency: &proto.XSollaVirtualCurrency{
-				Name:     n.order.GetFixedPackage().GetName(),
-				Sku:      n.order.GetFixedPackage().GetId(),
-				Quantity: 1,
-				Currency: n.order.GetFixedPackage().GetCurrency().GetCodeA3(),
-				Amount:   n.order.GetFixedPackage().GetPrice(),
-			},
 			Checkout: &proto.XSollaCheckout{
 				Currency: n.order.GetProjectOutcomeCurrency().CodeA3,
 				Amount:   n.order.GetProjectOutcomeAmount(),
@@ -140,7 +133,6 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 			VirtualItems: &proto.XSollaVirtualItems{
 				Items: []*proto.XSollaItem{
 					{
-						Sku:    n.order.GetFixedPackage().GetId(),
 						Amount: 1,
 					},
 				},
@@ -158,7 +150,7 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 			Phone:   n.order.GetPayerData().GetPhone(),
 			Email:   n.order.GetPayerData().GetEmail(),
 			Name:    n.order.ProjectAccount,
-			Country: n.order.GetPayerData().GetCountryCodeA2(),
+			Country: n.order.GetPayerData().GetCountry(),
 		},
 		Transaction: &proto.XSollaTransaction{
 			Id:            n.order.GetId(),
@@ -174,7 +166,7 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 			},
 			Vat: &proto.XSollaVat{
 				Currency: n.order.GetPaymentMethodIncomeCurrency().CodeA3,
-				Amount:   n.order.VatAmount.AmountPaymentMethodCurrency,
+				Amount:   float64(n.order.Tax.Amount),
 			},
 			Payout: &proto.XSollaPayout{
 				Currency: n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeA3,

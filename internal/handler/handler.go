@@ -1,212 +1,220 @@
 package handler
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"github.com/ProtocolONE/rabbitmq/pkg"
-	"github.com/centrifugal/gocent"
-	"github.com/micro/protobuf/ptypes"
-	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	"github.com/paysuper/paysuper-recurring-repository/tools"
-	"github.com/streadway/amqp"
-	"go.uber.org/zap"
-	"net/http"
-	"net/url"
+    "bytes"
+    "context"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "github.com/ProtocolONE/rabbitmq/pkg"
+    "github.com/centrifugal/gocent"
+    "github.com/micro/protobuf/ptypes"
+    proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
+    "github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
+    "github.com/paysuper/paysuper-recurring-repository/tools"
+    "github.com/streadway/amqp"
+    "go.uber.org/zap"
+    "net/http"
+    "net/url"
 )
 
 const (
-	notifierHandlerEmpty   = "default"
-	notifierHandlerCardPay = "cardpay"
-	notifierHandlerXSolla  = "xsolla"
+    // Notification request not send, order just mark as successfully complete
+    notifierHandlerEmpty = "empty"
+    // Notification request send by PaySuper notification protocol
+    notifierHandlerDefault = "default"
+    // Notification request send by CardPay notification protocol
+    notifierHandlerCardPay = "cardpay"
+    // Notification request send by XSolla  notification protocol
+    notifierHandlerXSolla = "xsolla"
 
-	errorNotifierHandlerNotFound               = "handler for specified payment system not found"
-	errorPaymentMethodUnknown                  = "unknown payment method"
-	errorPaymentMethodRequiredTxtParamNotFound = "param \"%s\" not found in DB transaction record\n"
-	errorPaymentMethodUnknownStatus            = "unknown transaction status"
-	errorEmptyUrl                              = "empty string in url"
-	errorNotificationNeedRetry                 = "bad project handler response notification request mark for new send (ID: %s, Action: %s)\n"
+    errorNotifierHandlerNotFound               = "handler for specified payment system not found"
+    errorPaymentMethodUnknown                  = "unknown payment method"
+    errorPaymentMethodRequiredTxtParamNotFound = "param \"%s\" not found in DB transaction record\n"
+    errorPaymentMethodUnknownStatus            = "unknown transaction status"
+    errorEmptyUrl                              = "empty string in url"
+    errorNotificationNeedRetry                 = "bad project handler response notification request mark for new send (ID: %s, Action: %s)\n"
 
-	loggerErrorNotificationRetry       = "[PAYONE_NOTIFIER] Project notification failed"
-	loggerErrorNotificationUpdate      = "[PAYONE_NOTIFIER] Repository service return error. Update order failed"
-	loggerNotificationRetryEnded       = "[PAYONE_NOTIFIER] Republishing message to RabbitMQ ended with max retry count"
-	loggerErrorNotificationRetryFailed = "[PAYONE_NOTIFIER] Republish message to RabbitMQ failed"
-	LoggerNotificationCentrifugo       = "[PAYONE_NOTIFIER] Send message to centrifugo failed"
+    loggerErrorNotificationRetry       = "[PAYONE_NOTIFIER] Project notification failed"
+    loggerErrorNotificationUpdate      = "[PAYONE_NOTIFIER] Repository service return error. Update order failed"
+    loggerNotificationRetryEnded       = "[PAYONE_NOTIFIER] Republishing message to RabbitMQ ended with max retry count"
+    loggerErrorNotificationRetryFailed = "[PAYONE_NOTIFIER] Republish message to RabbitMQ failed"
+    LoggerNotificationCentrifugo       = "[PAYONE_NOTIFIER] Send message to centrifugo failed"
 
-	MIMEApplicationJSON = "application/json"
+    MIMEApplicationJSON = "application/json"
 
-	HeaderAccept        = "Accept"
-	HeaderContentType   = "Content-Type"
-	HeaderSignature     = "Signature"
-	HeaderAuthorization = "Authorization"
+    HeaderAccept        = "Accept"
+    HeaderContentType   = "Content-Type"
+    HeaderSignature     = "Signature"
+    HeaderAuthorization = "Authorization"
 
-	NotificationActionCheck   = "check"
-	NotificationActionPayment = "payment"
+    NotificationActionCheck   = "check"
+    NotificationActionPayment = "payment"
 
-	centrifugoFieldOrderId = "order_id"
-	centrifugoFieldStatus  = "status"
-	centrifugoChanelMask   = "paysuper:order#%s"
+    centrifugoFieldOrderId = "order_id"
+    centrifugoFieldStatus  = "status"
+    centrifugoChanelMask   = "paysuper:order#%s"
 
-	RetryDlxTimeout   = 600
-	RetryExchangeName = "notify-payment-retry"
-	RetryMaxCount     = 288
-	retryCountHeader  = "x-retry-count"
+    RetryDlxTimeout   = 600
+    RetryExchangeName = "notify-payment-retry"
+    RetryMaxCount     = 288
+    retryCountHeader  = "x-retry-count"
 )
 
 var (
-	handlers = map[string]func(*Handler) Notifier{
-		notifierHandlerEmpty:   newEmptyHandler,
-		notifierHandlerCardPay: newCardPayHandler,
-		notifierHandlerXSolla:  newXSollaHandler,
-	}
+    handlers = map[string]func(*Handler) Notifier{
+        notifierHandlerEmpty:   newEmptyHandler,
+        notifierHandlerDefault: newDefaultHandler,
+        notifierHandlerCardPay: newCardPayHandler,
+        notifierHandlerXSolla:  newXSollaHandler,
+    }
 )
 
 type Table map[string]interface{}
 
 type Notifier interface {
-	Notify() error
+    Notify() error
 }
 
 type Handler struct {
-	order            *proto.Order
-	repository       grpc.BillingService
-	centrifugoClient *gocent.Client
+    order            *proto.Order
+    repository       grpc.BillingService
+    centrifugoClient *gocent.Client
 
-	retBrok    *rabbitmq.Broker
-	dlv        amqp.Delivery
-	RetryCount int32
+    retBrok    *rabbitmq.Broker
+    dlv        amqp.Delivery
+    RetryCount int32
+    retryProcess bool
 }
 
 func NewHandler(
-	o *proto.Order,
-	rep grpc.BillingService,
-	cClient *gocent.Client,
-	retBrok *rabbitmq.Broker,
-	dlv amqp.Delivery,
+    o *proto.Order,
+    rep grpc.BillingService,
+    cClient *gocent.Client,
+    retBrok *rabbitmq.Broker,
+    dlv amqp.Delivery,
 ) *Handler {
-	rtc := int32(0)
+    rtc := int32(0)
 
-	if v, ok := dlv.Headers[retryCountHeader]; ok {
-		rtc = v.(int32)
-	}
+    if v, ok := dlv.Headers[retryCountHeader]; ok {
+        rtc = v.(int32)
+    }
 
-	return &Handler{
-		order:            o,
-		repository:       rep,
-		centrifugoClient: cClient,
-		retBrok:          retBrok,
-		dlv:              dlv,
-		RetryCount:       rtc,
-	}
+    return &Handler{
+        order:            o,
+        repository:       rep,
+        centrifugoClient: cClient,
+        retBrok:          retBrok,
+        dlv:              dlv,
+        RetryCount:       rtc,
+    }
 }
 
 func (h *Handler) GetNotifier() (Notifier, error) {
-	handler, ok := handlers[h.order.Project.GetCallbackProtocol()]
+    handler, ok := handlers[h.order.Project.GetCallbackProtocol()]
 
-	if !ok {
-		return nil, errors.New(errorNotifierHandlerNotFound)
-	}
+    if !ok {
+        return nil, errors.New(errorNotifierHandlerNotFound)
+    }
 
-	m := h.order.Project.Merchant
+    m := h.order.Project.Merchant
 
-	if m.GetFirstPaymentAt() == nil {
-		m.FirstPaymentAt = ptypes.TimestampNow()
-		_, err := h.repository.UpdateMerchant(context.TODO(), m)
+    if m.GetFirstPaymentAt() == nil {
+        m.FirstPaymentAt = ptypes.TimestampNow()
+        _, err := h.repository.UpdateMerchant(context.TODO(), m)
 
-		if err != nil {
-			h.HandleError("gRpc call to update merchant failed", err, Table{"merchant": m})
-		}
-	}
+        if err != nil {
+            h.HandleError("gRpc call to update merchant failed", err, Table{"merchant": m})
+        }
+    }
 
-	h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
+    h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
 
-	return handler(h), nil
+    return handler(h), nil
 }
 
 func (h *Handler) validateUrl(cUrl string) (*url.URL, error) {
-	if cUrl == "" {
-		return nil, errors.New(errorEmptyUrl)
-	}
+    if cUrl == "" {
+        return nil, errors.New(errorEmptyUrl)
+    }
 
-	u, err := url.ParseRequestURI(cUrl)
+    u, err := url.ParseRequestURI(cUrl)
 
-	if err != nil {
-		return nil, err
-	}
+    if err != nil {
+        return nil, err
+    }
 
-	return u, nil
+    return u, nil
 }
 
 func (h *Handler) request(method, url string, req []byte, headers map[string]string) (*http.Response, error) {
-	client := tools.NewLoggedHttpClient(zap.S())
-	httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(req))
+    client := tools.NewLoggedHttpClient(zap.S())
+    httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(req))
 
-	if err != nil {
-		return nil, err
-	}
+    if err != nil {
+        return nil, err
+    }
 
-	for k, v := range headers {
-		httpReq.Header.Add(k, v)
-	}
+    for k, v := range headers {
+        httpReq.Header.Add(k, v)
+    }
 
-	return client.Do(httpReq)
+    return client.Do(httpReq)
 }
 
 func (h *Handler) SendCentrifugoMessage(o *proto.Order) error {
-	msg := map[string]interface{}{
-		centrifugoFieldOrderId: o.GetId(),
-		centrifugoFieldStatus:  OrderAlphabetStatuses[o.GetStatus()],
-	}
+    msg := map[string]interface{}{
+        centrifugoFieldOrderId: o.GetId(),
+        centrifugoFieldStatus:  OrderAlphabetStatuses[o.GetStatus()],
+    }
 
-	ch := fmt.Sprintf(centrifugoChanelMask, msg[centrifugoFieldOrderId])
-	b, err := json.Marshal(msg)
+    ch := fmt.Sprintf(centrifugoChanelMask, msg[centrifugoFieldOrderId])
+    b, err := json.Marshal(msg)
 
-	if err != nil {
-		return err
-	}
+    if err != nil {
+        return err
+    }
 
-	if err = h.centrifugoClient.Publish(context.Background(), ch, b); err != nil {
-		return err
-	}
+    if err = h.centrifugoClient.Publish(context.Background(), ch, b); err != nil {
+        return err
+    }
 
-	return nil
+    return nil
 }
 
 func (h *Handler) HandleError(msg string, err error, t Table) {
-	data := []interface{}{
-		"error", err,
-		"order_id", h.order.Id,
-		"notify_handler", h.order.Project.CallbackProtocol,
-	}
+    data := []interface{}{
+        "error", err,
+        "order_id", h.order.Id,
+        "notify_handler", h.order.Project.CallbackProtocol,
+    }
 
-	if t != nil && len(t) > 0 {
-		for k, v := range t {
-			data = append(data, k, v)
-		}
-	}
+    if t != nil && len(t) > 0 {
+        for k, v := range t {
+            data = append(data, k, v)
+        }
+    }
 
-	zap.S().Errorw(msg, data...)
+    zap.S().Errorw(msg, data...)
 }
 
 func (h *Handler) handleErrorWithRetry(msg string, err error, t Table) error {
-	h.HandleError(msg, err, t)
-	return h.retry()
+    h.HandleError(msg, err, t)
+    return h.retry()
 }
 
 func (h *Handler) retry() (err error) {
-	if h.RetryCount >= RetryMaxCount {
-		zap.S().Infow(loggerNotificationRetryEnded, "order_id", h.order.Id)
-		return
-	}
+    if h.RetryCount >= RetryMaxCount {
+        zap.S().Infow(loggerNotificationRetryEnded, "order_id", h.order.Id)
+        return
+    }
 
-	err = h.retBrok.Publish(h.dlv.RoutingKey, h.order, amqp.Table{"x-retry-count": h.RetryCount + 1})
+    err = h.retBrok.Publish(h.dlv.RoutingKey, h.order, amqp.Table{"x-retry-count": h.RetryCount + 1})
 
-	if err != nil {
-		h.HandleError(loggerErrorNotificationRetryFailed, err, Table{"retry_count": h.RetryCount})
-	}
+    if err != nil {
+        h.HandleError(loggerErrorNotificationRetryFailed, err, Table{"retry_count": h.RetryCount})
+    }
 
-	return
+    h.retryProcess = true
+    return
 }
