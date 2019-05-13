@@ -120,7 +120,7 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 		n.order.GetPspFeeAmount().GetAmountMerchantCurrency() - n.order.GetPaymentSystemFeeAmount().AmountMerchantCurrency
 
 	if n.order.VatAmount != nil && n.order.VatAmount.AmountMerchantCurrency > 0 {
-			payoutAmount -= n.order.VatAmount.AmountMerchantCurrency
+		payoutAmount -= n.order.VatAmount.AmountMerchantCurrency
 	}
 
 	pn := &proto.XSollaPaymentNotification{
