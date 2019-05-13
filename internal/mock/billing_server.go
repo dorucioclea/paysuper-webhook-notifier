@@ -217,8 +217,8 @@ func (s *BillingServerOkMock) GetMerchantPaymentMethod(
 	ctx context.Context,
 	in *grpc.GetMerchantPaymentMethodRequest,
 	opts ...client.CallOption,
-) (*billing.MerchantPaymentMethod, error) {
-	return &billing.MerchantPaymentMethod{}, nil
+) (*grpc.GetMerchantPaymentMethodResponse, error) {
+	return &grpc.GetMerchantPaymentMethodResponse{}, nil
 }
 
 func (s *BillingServerOkMock) ChangeMerchantPaymentMethod(
@@ -346,6 +346,78 @@ func (s *BillingServerOkMock) SetMerchantS3Agreement(
 	opts ...client.CallOption,
 ) (*grpc.ChangeMerchantDataResponse, error) {
 	return &grpc.ChangeMerchantDataResponse{}, nil
+}
+
+func (s *BillingServerOkMock) AddSystemFees(
+	ctx context.Context,
+	in *billing.AddSystemFeesRequest,
+	opts ...client.CallOption,
+) (*grpc.EmptyResponse, error) {
+	return &grpc.EmptyResponse{}, nil
+}
+
+func (s *BillingServerOkMock) GetSystemFeesForPayment(
+	ctx context.Context,
+	in *billing.GetSystemFeesRequest,
+	opts ...client.CallOption,
+) (*billing.FeeSet, error) {
+	return &billing.FeeSet{}, nil
+}
+
+func (s *BillingServerOkMock) GetActualSystemFeesList(
+	ctx context.Context,
+	in *grpc.EmptyRequest,
+	opts ...client.CallOption,
+) (*billing.SystemFeesList, error) {
+	return &billing.SystemFeesList{}, nil
+}
+
+func (s *BillingServerOkMock) ChangeProject(
+	ctx context.Context,
+	in *billing.Project,
+	opts ...client.CallOption,
+) (*grpc.ChangeProjectResponse, error) {
+	return &grpc.ChangeProjectResponse{}, nil
+}
+
+func (s *BillingServerOkMock) GetProject(
+	ctx context.Context,
+	in *grpc.GetProjectRequest,
+	opts ...client.CallOption,
+) (*grpc.ChangeProjectResponse, error) {
+	return &grpc.ChangeProjectResponse{}, nil
+}
+
+func (s *BillingServerOkMock) ListProjects(
+	ctx context.Context,
+	in *grpc.ListProjectsRequest,
+	opts ...client.CallOption,
+) (*grpc.ListProjectsResponse, error) {
+	return &grpc.ListProjectsResponse{}, nil
+}
+
+func (s *BillingServerOkMock) DeleteProject(
+	ctx context.Context,
+	in *grpc.GetProjectRequest,
+	opts ...client.CallOption,
+) (*grpc.ChangeProjectResponse, error) {
+	return &grpc.ChangeProjectResponse{}, nil
+}
+
+func (s *BillingServerOkMock) CreateToken(
+	ctx context.Context,
+	in *grpc.TokenRequest,
+	opts ...client.CallOption,
+) (*grpc.TokenResponse, error) {
+	return &grpc.TokenResponse{}, nil
+}
+
+func (s *BillingServerOkMock) CheckProjectRequestSignature(
+	ctx context.Context,
+	in *grpc.CheckProjectRequestSignatureRequest,
+	opts ...client.CallOption,
+) (*grpc.CheckProjectRequestSignatureResponse, error) {
+	return &grpc.CheckProjectRequestSignatureResponse{}, nil
 }
 
 func (s *BillingServerErrorMock) GetProductsForOrder(
@@ -499,7 +571,7 @@ func (s *BillingServerErrorMock) GetMerchantPaymentMethod(
 	ctx context.Context,
 	in *grpc.GetMerchantPaymentMethodRequest,
 	opts ...client.CallOption,
-) (*billing.MerchantPaymentMethod, error) {
+) (*grpc.GetMerchantPaymentMethodResponse, error) {
 	return nil, errors.New(SomeError)
 }
 
@@ -608,6 +680,78 @@ func (s *BillingServerErrorMock) SetMerchantS3Agreement(
 		Status:  pkg.ResponseStatusBadData,
 		Message: SomeError,
 	}, nil
+}
+
+func (s *BillingServerErrorMock) AddSystemFees(
+	ctx context.Context,
+	in *billing.AddSystemFeesRequest,
+	opts ...client.CallOption,
+) (*grpc.EmptyResponse, error) {
+	return &grpc.EmptyResponse{}, nil
+}
+
+func (s *BillingServerErrorMock) GetSystemFeesForPayment(
+	ctx context.Context,
+	in *billing.GetSystemFeesRequest,
+	opts ...client.CallOption,
+) (*billing.FeeSet, error) {
+	return &billing.FeeSet{}, nil
+}
+
+func (s *BillingServerErrorMock) GetActualSystemFeesList(
+	ctx context.Context,
+	in *grpc.EmptyRequest,
+	opts ...client.CallOption,
+) (*billing.SystemFeesList, error) {
+	return &billing.SystemFeesList{}, nil
+}
+
+func (s *BillingServerErrorMock) ChangeProject(
+	ctx context.Context,
+	in *billing.Project,
+	opts ...client.CallOption,
+) (*grpc.ChangeProjectResponse, error) {
+	return &grpc.ChangeProjectResponse{}, nil
+}
+
+func (s *BillingServerErrorMock) GetProject(
+	ctx context.Context,
+	in *grpc.GetProjectRequest,
+	opts ...client.CallOption,
+) (*grpc.ChangeProjectResponse, error) {
+	return &grpc.ChangeProjectResponse{}, nil
+}
+
+func (s *BillingServerErrorMock) ListProjects(
+	ctx context.Context,
+	in *grpc.ListProjectsRequest,
+	opts ...client.CallOption,
+) (*grpc.ListProjectsResponse, error) {
+	return &grpc.ListProjectsResponse{}, nil
+}
+
+func (s *BillingServerErrorMock) DeleteProject(
+	ctx context.Context,
+	in *grpc.GetProjectRequest,
+	opts ...client.CallOption,
+) (*grpc.ChangeProjectResponse, error) {
+	return &grpc.ChangeProjectResponse{}, nil
+}
+
+func (s *BillingServerErrorMock) CreateToken(
+	ctx context.Context,
+	in *grpc.TokenRequest,
+	opts ...client.CallOption,
+) (*grpc.TokenResponse, error) {
+	return &grpc.TokenResponse{}, nil
+}
+
+func (s *BillingServerErrorMock) CheckProjectRequestSignature(
+	ctx context.Context,
+	in *grpc.CheckProjectRequestSignatureRequest,
+	opts ...client.CallOption,
+) (*grpc.CheckProjectRequestSignatureResponse, error) {
+	return &grpc.CheckProjectRequestSignatureResponse{}, nil
 }
 
 func (s *BillingServerOkMock) CreateOrUpdateProduct(ctx context.Context, in *grpc.Product, opts ...client.CallOption) (*grpc.Product, error) {

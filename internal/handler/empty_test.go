@@ -38,7 +38,7 @@ func (suite *EmptyHandlerTestSuite) SetupTest() {
 			Uuid: bson.NewObjectId().Hex(),
 			Project: &billing.ProjectOrder{
 				Id:               bson.NewObjectId().Hex(),
-				Name:             bson.NewObjectId().Hex(),
+				Name:             map[string]string{"en": bson.NewObjectId().Hex()},
 				SecretKey:        bson.NewObjectId().Hex(),
 				CallbackProtocol: "empty",
 			},
