@@ -2,32 +2,32 @@ language: go
 sudo: false
 go:
 - 1.11.x
-
 stages:
-  - test
-  - name: deploy 
-    if: branch = master 
-
+- test
+- name: deploy
+  if: branch = master
+env:
+  global:
+  - GO111MODULE=on
+  - secure: WxkxQtM8L8BqBQDHxvX9lb0bR61waAutMV3H115bNCbFkTxSje2IEjS1DU9OLxr4HlLtIfthUX46O9wD5aGTDmeJSFokVK1D9kI8u/4HCenvjEltNxHx0Qy3+OD/Gtsrv9eJzNl1lgIpLnMPo00Yyfvkhnhmpnma6MAFvhxC3l4VuxiOxggjWBafQaPbjO/uvGyYpzsyKm5IyoiwtoCVAABY41CW3D4CoLU6TeglUgHHiDTXqfDjahR0N9c29ruDuS/7cT7zRvHaSHxTpsvUxdClnrhO7gZqrgcObFgEWYiDM+2Frf28GHKRpvSdPsIFIkJbieOxRfuXpHzN4Q4oTVmpcjcorq4L8gtjzNurq1b4i9Y3nJZUezXj/clbQ+Yh+j2H64lbZzaLOx4ywinX7ODbeKxQLQgeZRKLaYmP8M+Dnwwn5oMyh+klelRq3s6hg7wGh/zfKzK60ZGml+bY8NJTLTmdLQtFqgOB6x7KfXJQ6QyYODT+yWf5XjJzoiT3jggTdZMVqJACqP+vTnlsdjis8hLJcTZ5jWvEEBTMxk35PynbuSL9D3qLdcAuDM4/W21gC3t43TNgiRocFtT83wQPNkUokLVL77Dp/qo7jEC3s/ft4GXqCLEcPy+BaZxe9mqHv6gECK+eeDNVXym69Yx/Ry6RxvAAPmP/kONX1K8=
+  - secure: TZOh5frFhGgToLVkWdkavCJ4DIsMwB7n8Z+T2sL+tscP6WyYnYNW/jMxvCzlkRL6WV1ddIvuHoD4TNPc6qSQNwQLc9wRXUCGZNN6HYQgCjJrciBbJlPBTwmoBo2geaQaj1JBLr/zjda/81wpxpiS8DcV6/5QJt/G3qR8M3m/mmoreQ40Nthpj06KTxyEebOgG0x9QZgEmAVDXb0f1Dg32dJiyUf+dbPeECy6BLmamSSP7ph7CkY1R1Lm7l2HQ0gmsO+QuekMO0vY1cPEdadNdHLuDmZL51svViFWjOkNpCYpR8cu0lK0o/ifurPRTVLjDHqB+Lj3S8iEwU4hoq2oji7gmliHd7gDQBAprCVWr0djFw297Edgwba8HGn4C8hO3mk7pzhhoRWo/5HK43QdW7IWqbrX/gQuoahvITtVk2eUe9fvz9p1Iw25zkXPAPH+0YnGEOXSaa/7BA9IgbTcmEOxUXq/QYFa3sBJqp2/jh4k52AgG9z7KA8qiJEphPWz7XpC1teV2kPDt35SGlSoarBHIfLc/g9kuRh4dpeQIP/Ufi0AKaJuL4vI7sAOpgNtF2fL5QE7NpHHo7u/Z6qUlF+gOUrY2ZXK61FoBeK/HHL3Vnvk/ewhR9ZdmLedi8g5bCpYxeNqP7a/cvpg5F7W0ffiAi6VeP9FzFm2XNqLBIY=
 jobs:
   include:
   - stage: test
+    services:
+    - rabbitmq
     install: true
     script:
-    - echo "tests here"
-    #- go test ./... -coverprofile=coverage.out -covermode=atomic -p=1
-    #after_success:
-    #- bash <(curl -s https://codecov.io/bash)
+    - go test ./... -coverprofile=coverage.out -covermode=atomic -p=1
+    after_success:
+    - bash <(curl -s https://codecov.io/bash)
   - stage: deploy
     services: docker
     install: true
     script:
-    - docker run -it
-      -e JENKINS_AUTH_TOKEN=$JENKINS_AUTH_TOKEN
-      -e JENKINS_BUILD_TOKEN=$JENKINS_BUILD_TOKEN
-      -e JENKINS_BUILD_PROJECT=$TRAVIS_REPO_SLUG
-      -e JENKINS_BUILD_BRANCH=$TRAVIS_BRANCH
-      p1hub/p1jenkinstrigger 
-
+    - docker run -it -e JENKINS_AUTH_TOKEN=$JENKINS_AUTH_TOKEN -e JENKINS_BUILD_TOKEN=$JENKINS_BUILD_TOKEN
+      -e JENKINS_BUILD_PROJECT=$TRAVIS_REPO_SLUG -e JENKINS_BUILD_BRANCH=$TRAVIS_BRANCH
+      p1hub/p1jenkinstrigger
 notifications:
   email: false
   slack:

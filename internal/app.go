@@ -6,7 +6,6 @@ import (
 	"github.com/InVisionApp/go-health/handlers"
 	"github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/centrifugal/gocent"
-	"github.com/kelseyhightower/envconfig"
 	"github.com/micro/go-micro"
 	k8s "github.com/micro/kubernetes/go/micro"
 	"github.com/paysuper/paysuper-billing-server/pkg"
@@ -14,6 +13,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
 	"github.com/paysuper/paysuper-recurring-repository/tools"
+	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/handler"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
@@ -26,16 +26,8 @@ const (
 	serviceName = "p1paynotifier"
 )
 
-type Config struct {
-	CentrifugoUrl string `envconfig:"CENTRIFUGO_URL" required:"true"`
-	CentrifugoKey string `envconfig:"CENTRIFUGO_KEY" required:"true"`
-	BrokerAddress string `envconfig:"BROKER_ADDRESS" required:"true"`
-	MetricsPort   string `envconfig:"METRICS_PORT" required:"false" default:"8087"`
-	MicroRegistry string `envconfig:"MICRO_REGISTRY" required:"false"`
-}
-
 type NotifierApplication struct {
-	cfg    *Config
+	cfg    *config.Config
 	repo   grpc.BillingService
 	centCl *gocent.Client
 
@@ -104,11 +96,13 @@ func (app *NotifierApplication) initLogger() {
 }
 
 func (app *NotifierApplication) initConfig() {
-	app.cfg = &Config{}
+	cfg, err := config.NewConfig()
 
-	if err := envconfig.Process("", app.cfg); err != nil {
+	if err != nil {
 		app.log.Fatal("Config init failed", zap.Error(err))
 	}
+
+	app.cfg = cfg
 }
 
 func (app *NotifierApplication) initBroker() {

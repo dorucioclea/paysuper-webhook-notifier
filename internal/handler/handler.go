@@ -19,9 +19,14 @@ import (
 )
 
 const (
-	notifierHandlerEmpty   = "default"
+	// Notification request not send, order just mark as successfully complete
+	notifierHandlerEmpty = "empty"
+	// Notification request send by PaySuper notification protocol
+	notifierHandlerDefault = "default"
+	// Notification request send by CardPay notification protocol
 	notifierHandlerCardPay = "cardpay"
-	notifierHandlerXSolla  = "xsolla"
+	// Notification request send by XSolla  notification protocol
+	notifierHandlerXSolla = "xsolla"
 
 	errorNotifierHandlerNotFound               = "handler for specified payment system not found"
 	errorPaymentMethodUnknown                  = "unknown payment method"
@@ -59,6 +64,7 @@ const (
 var (
 	handlers = map[string]func(*Handler) Notifier{
 		notifierHandlerEmpty:   newEmptyHandler,
+		notifierHandlerDefault: newDefaultHandler,
 		notifierHandlerCardPay: newCardPayHandler,
 		notifierHandlerXSolla:  newXSollaHandler,
 	}
@@ -75,9 +81,10 @@ type Handler struct {
 	repository       grpc.BillingService
 	centrifugoClient *gocent.Client
 
-	retBrok    *rabbitmq.Broker
-	dlv        amqp.Delivery
-	RetryCount int32
+	retBrok      *rabbitmq.Broker
+	dlv          amqp.Delivery
+	RetryCount   int32
+	retryProcess bool
 }
 
 func NewHandler(
@@ -208,5 +215,6 @@ func (h *Handler) retry() (err error) {
 		h.HandleError(loggerErrorNotificationRetryFailed, err, Table{"retry_count": h.RetryCount})
 	}
 
+	h.retryProcess = true
 	return
 }
