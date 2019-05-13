@@ -117,17 +117,6 @@ func (h *Handler) GetNotifier() (Notifier, error) {
 		return nil, errors.New(errorNotifierHandlerNotFound)
 	}
 
-	m := h.order.Project.Merchant
-
-	if m.GetFirstPaymentAt() == nil {
-		m.FirstPaymentAt = ptypes.TimestampNow()
-		_, err := h.repository.UpdateMerchant(context.TODO(), m)
-
-		if err != nil {
-			h.HandleError("gRpc call to update merchant failed", err, Table{"merchant": m})
-		}
-	}
-
 	h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
 
 	return handler(h), nil

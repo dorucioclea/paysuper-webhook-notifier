@@ -100,11 +100,11 @@ func (n *XSolla) getCheckNotification() *proto.XSollaCheckNotification {
 		NotificationType: xsollaCheckNotificationType,
 		User: &proto.XSollaUser{
 			Id:      n.order.GetProjectAccount(),
-			Ip:      n.order.GetPayerData().GetIp(),
-			Phone:   n.order.GetPayerData().GetPhone(),
-			Email:   n.order.GetPayerData().GetEmail(),
+			Ip:      n.order.User.GetIp(),
+			Phone:   n.order.User.GetPhone(),
+			Email:   n.order.User.GetEmail(),
 			Name:    n.order.ProjectAccount,
-			Country: n.order.GetPayerData().GetCountryCodeA2(),
+			Country: n.order.User.Address.GetCountry(),
 		},
 	}
 }
@@ -119,31 +119,14 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 	payoutAmount := n.order.GetAmountOutMerchantAccountingCurrency() -
 		n.order.GetPspFeeAmount().GetAmountMerchantCurrency() - n.order.GetPaymentSystemFeeAmount().AmountMerchantCurrency
 
-	if n.order.VatAmount != nil && n.order.VatAmount.AmountMerchantCurrency > 0 {
-		payoutAmount -= n.order.VatAmount.AmountMerchantCurrency
+	if n.order.Tax != nil && n.order.Tax.Amount > 0 {
+		payoutAmount -= n.order.Tax.Amount
 	}
 
 	pn := &proto.XSollaPaymentNotification{
 		NotificationType: xsollaPaymentNotificationType,
 		Purchase: &proto.XSollaPurchase{
-			VirtualCurrency: &proto.XSollaVirtualCurrency{
-				Name:     n.order.GetFixedPackage().GetName(),
-				Sku:      n.order.GetFixedPackage().GetId(),
-				Quantity: 1,
-				Currency: n.order.GetFixedPackage().GetCurrency().GetCodeA3(),
-				Amount:   n.order.GetFixedPackage().GetPrice(),
-			},
 			Checkout: &proto.XSollaCheckout{
-				Currency: n.order.GetProjectOutcomeCurrency().CodeA3,
-				Amount:   n.order.GetProjectOutcomeAmount(),
-			},
-			VirtualItems: &proto.XSollaVirtualItems{
-				Items: []*proto.XSollaItem{
-					{
-						Sku:    n.order.GetFixedPackage().GetId(),
-						Amount: 1,
-					},
-				},
 				Currency: n.order.GetProjectOutcomeCurrency().CodeA3,
 				Amount:   n.order.GetProjectOutcomeAmount(),
 			},
@@ -154,11 +137,11 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 		},
 		User: &proto.XSollaUser{
 			Id:      n.order.GetProjectAccount(),
-			Ip:      n.order.GetPayerData().GetIp(),
-			Phone:   n.order.GetPayerData().GetPhone(),
-			Email:   n.order.GetPayerData().GetEmail(),
+			Ip:      n.order.User.GetIp(),
+			Phone:   n.order.User.GetPhone(),
+			Email:   n.order.User.GetEmail(),
 			Name:    n.order.ProjectAccount,
-			Country: n.order.GetPayerData().GetCountryCodeA2(),
+			Country: n.order.User.Address.GetCountry(),
 		},
 		Transaction: &proto.XSollaTransaction{
 			Id:            n.order.GetId(),
@@ -174,23 +157,7 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 			},
 			Vat: &proto.XSollaVat{
 				Currency: n.order.GetPaymentMethodIncomeCurrency().CodeA3,
-				Amount:   n.order.VatAmount.AmountPaymentMethodCurrency,
-			},
-			Payout: &proto.XSollaPayout{
-				Currency: n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeA3,
-				Amount:   payoutAmount,
-			},
-			XsollaFee: &proto.XSollaXsollaFee{
-				Currency: n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeA3,
-				Amount:   n.order.GetPspFeeAmount().GetAmountMerchantCurrency(),
-			},
-			PaymentMethodFee: &proto.XSollaPaymentMethodFee{
-				Currency: n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeA3,
-				Amount:   n.order.GetPaymentSystemFeeAmount().GetAmountMerchantCurrency(),
-			},
-			RepatriationCommission: &proto.XSollaRepatriationCommission{
-				Currency: n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeA3,
-				Amount:   n.order.GetToPayerFeeAmount().GetAmountMerchantCurrency(),
+				Amount:   n.order.Tax.Amount,
 			},
 		},
 		CustomParameters: n.order.GetProjectParams(),
@@ -198,7 +165,6 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 
 	cReq := &grpc.ConvertRateRequest{
 		From: n.order.PaymentMethodOutcomeCurrency.CodeInt,
-		To:   n.order.GetProject().GetMerchant().GetPayoutCurrency().CodeInt,
 	}
 
 	if cRate, err := n.repository.GetConvertRate(context.TODO(), cReq); err != nil {

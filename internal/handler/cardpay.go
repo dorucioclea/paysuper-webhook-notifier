@@ -96,9 +96,9 @@ func (n *CardPay) getCallbackRequest() (*proto.CardPayPaymentCallback, error) {
 		},
 		Customer: &proto.CardPayCustomer{
 			Id:     n.order.GetProjectAccount(),
-			Ip:     n.order.GetPayerData().GetIp(),
-			Email:  n.order.GetPayerData().GetEmail(),
-			Locale: n.order.GetPayerData().GetTimezone(),
+			Ip:     n.order.User.GetIp(),
+			Email:  n.order.User.GetEmail(),
+			Locale: n.order.User.Locale,
 		},
 	}
 
