@@ -46,7 +46,7 @@ services:
         - CENTRIFUGO_ADMIN_PASSWORD=admin
         - CENTRIFUGO_ADMIN_SECRET=secret
     volumes:
-        - D:/Projects/Go/github.com/ProtocolONE/payone-notifier/configs/centrifugo:/centrifugo
+        - D:/Projects/Go/github.com/paysuper/paysuper-webhook-notifier/configs/centrifugo:/centrifugo
     tty: true
     command: centrifugo --admin -c /centrifugo/config.json
     ports:
