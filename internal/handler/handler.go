@@ -12,6 +12,7 @@ import (
 	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/tools"
+	"github.com/paysuper/paysuper-webhook-notifier/pkg"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	"net/http"
@@ -82,6 +83,7 @@ type Handler struct {
 	centrifugoClient *gocent.Client
 
 	retBrok      *rabbitmq.Broker
+	taxjarBroker *rabbitmq.Broker
 	dlv          amqp.Delivery
 	RetryCount   int32
 	retryProcess bool
@@ -92,6 +94,7 @@ func NewHandler(
 	rep grpc.BillingService,
 	cClient *gocent.Client,
 	retBrok *rabbitmq.Broker,
+	taxjarBroker *rabbitmq.Broker,
 	dlv amqp.Delivery,
 ) *Handler {
 	rtc := int32(0)
@@ -105,6 +108,7 @@ func NewHandler(
 		repository:       rep,
 		centrifugoClient: cClient,
 		retBrok:          retBrok,
+		taxjarBroker:     taxjarBroker,
 		dlv:              dlv,
 		RetryCount:       rtc,
 	}
@@ -118,6 +122,14 @@ func (h *Handler) GetNotifier() (Notifier, error) {
 	}
 
 	h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
+
+	if h.order.User.Address.Country == "US" {
+		err := h.taxjarBroker.Publish(pkg.TaxjarRmqOrderTopicName, h.order, nil)
+
+		if err != nil {
+			err = h.handleErrorWithRetry("Message publishing to RMQ queue to send to taxjar failed", err, nil)
+		}
+	}
 
 	return handler(h), nil
 }

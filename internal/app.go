@@ -15,6 +15,7 @@ import (
 	"github.com/paysuper/paysuper-recurring-repository/tools"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/handler"
+	selfPkg "github.com/paysuper/paysuper-webhook-notifier/pkg"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	"log"
@@ -34,9 +35,10 @@ type NotifierApplication struct {
 	httpServer *http.Server
 	router     *http.ServeMux
 
-	log         *zap.Logger
-	broker      *rabbitmq.Broker
-	retryBroker *rabbitmq.Broker
+	log          *zap.Logger
+	broker       *rabbitmq.Broker
+	retryBroker  *rabbitmq.Broker
+	taxjarBroker *rabbitmq.Broker
 }
 
 type appHealthCheck struct{}
@@ -117,6 +119,15 @@ func (app *NotifierApplication) initBroker() {
 	}
 
 	retryBroker, err := rabbitmq.NewBroker(app.cfg.BrokerAddress)
+
+	if err != nil {
+		app.log.Fatal(
+			"Creating RabbitMq retry broker failed",
+			zap.Error(err),
+			zap.String("amqp_url", app.cfg.BrokerAddress),
+		)
+	}
+
 	retryBroker.Opts.QueueOpts.Args = amqp.Table{
 		"x-dead-letter-exchange":    constant.PayOneTopicNotifyPaymentName,
 		"x-message-ttl":             int32(handler.RetryDlxTimeout * 1000),
@@ -138,8 +149,21 @@ func (app *NotifierApplication) initBroker() {
 		app.log.Fatal("Registration RabbitMQ broker handler failed", zap.Error(err))
 	}
 
+	taxjarBroker, err := rabbitmq.NewBroker(app.cfg.BrokerAddress)
+
+	if err != nil {
+		app.log.Fatal(
+			"Creating RabbitMq TaxJar broker failed",
+			zap.Error(err),
+			zap.String("amqp_url", app.cfg.BrokerAddress),
+		)
+	}
+
+	taxjarBroker.Opts.ExchangeOpts.Name = selfPkg.TaxjarRmqOrderTopicName
+
 	app.broker = broker
 	app.retryBroker = retryBroker
+	app.taxjarBroker = taxjarBroker
 }
 
 func (app *NotifierApplication) initHealth() {
@@ -205,7 +229,7 @@ func (app *NotifierApplication) Stop() {
 }
 
 func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
-	h := handler.NewHandler(o, app.repo, app.centCl, app.retryBroker, d)
+	h := handler.NewHandler(o, app.repo, app.centCl, app.retryBroker, app.taxjarBroker, d)
 
 	if h.RetryCount == 0 && (o.Status == constant.OrderStatusPaymentSystemDeclined ||
 		o.Status == constant.OrderStatusPaymentSystemCanceled) {
