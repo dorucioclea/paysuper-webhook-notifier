@@ -24,7 +24,8 @@ import (
 )
 
 const (
-	serviceName = "p1paynotifier"
+	serviceName                             = "p1paynotifier"
+	centrifugoMsgNotificationDeliveryFailed = "Notification delivery failed"
 )
 
 type NotifierApplication struct {
@@ -135,14 +136,6 @@ func (app *NotifierApplication) initBroker() {
 	}
 	retryBroker.Opts.ExchangeOpts.Name = handler.RetryExchangeName
 
-	if err != nil {
-		app.log.Fatal(
-			"Creating RabbitMq retry broker failed",
-			zap.Error(err),
-			zap.String("amqp_url", app.cfg.BrokerAddress),
-		)
-	}
-
 	err = broker.RegisterSubscriber(constant.PayOneTopicNotifyPaymentName, app.Process)
 
 	if err != nil {
@@ -231,9 +224,9 @@ func (app *NotifierApplication) Stop() {
 func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 	h := handler.NewHandler(o, app.repo, app.centCl, app.retryBroker, app.taxjarBroker, d)
 
-	if h.RetryCount == 0 && (o.Status == constant.OrderStatusPaymentSystemDeclined ||
-		o.Status == constant.OrderStatusPaymentSystemCanceled) {
-		if err := h.SendCentrifugoMessage(o); err != nil {
+	if h.RetryCount == 0 && (o.PrivateStatus == constant.OrderStatusPaymentSystemDeclined ||
+		o.PrivateStatus == constant.OrderStatusPaymentSystemCanceled) {
+		if err := h.SendCentrifugoMessage(o, centrifugoMsgNotificationDeliveryFailed); err != nil {
 			h.HandleError(handler.LoggerNotificationCentrifugo, err, nil)
 		}
 		return nil
@@ -248,7 +241,7 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 	err = n.Notify()
 
 	if h.RetryCount == 0 {
-		if err := h.SendCentrifugoMessage(o); err != nil {
+		if err := h.SendCentrifugoMessage(o, centrifugoMsgNotificationDeliveryFailed); err != nil {
 			h.HandleError(handler.LoggerNotificationCentrifugo, err, nil)
 		}
 	}

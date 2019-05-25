@@ -27,7 +27,7 @@ func newXSollaHandler(h *Handler) Notifier {
 
 func (n *XSolla) Notify() error {
 	// do check notify
-	_, err := n.do(n.order.GetProject().GetUrlCheckAccount(), n.getCheckNotification(), NotificationActionCheck)
+	_, err := n.sendRequest(n.order.GetProject().GetUrlCheckAccount(), n.getCheckNotification(), NotificationActionCheck)
 
 	if err != nil {
 		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
@@ -40,17 +40,17 @@ func (n *XSolla) Notify() error {
 		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
-	resp, err := n.do(n.order.GetProject().GetUrlProcessPayment(), req, NotificationActionPayment)
+	resp, err := n.sendRequest(n.order.GetProject().GetUrlProcessPayment(), req, NotificationActionPayment)
 
 	if err != nil {
 		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
-		n.order.Status = constant.OrderStatusProjectComplete
+		n.order.PrivateStatus = constant.OrderStatusProjectComplete
 	} else {
 		// in future in that case must be generating refund request to payment system
-		n.order.Status = constant.OrderStatusProjectReject
+		n.order.PrivateStatus = constant.OrderStatusProjectReject
 	}
 
 	if _, err := n.repository.UpdateOrder(context.TODO(), n.order); err != nil {
@@ -60,7 +60,7 @@ func (n *XSolla) Notify() error {
 	return nil
 }
 
-func (n *XSolla) do(url string, req interface{}, action string) (*http.Response, error) {
+func (n *XSolla) sendRequest(url string, req interface{}, action string) (*http.Response, error) {
 	reqUrl, err := n.validateUrl(url)
 
 	if err != nil {
@@ -120,8 +120,15 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 		n.order.GetPspFeeAmount().GetAmountMerchantCurrency() - n.order.GetPaymentSystemFeeAmount().AmountMerchantCurrency
 
 	if n.order.Tax != nil && n.order.Tax.Amount > 0 {
-		payoutAmount -= n.order.Tax.Amount
+		payoutAmount -= float64(n.order.Tax.Amount)
 	}
+
+	m, err := n.GetMerchant(n.order.Project.MerchantId)
+	if err != nil {
+		return nil, err
+	}
+
+	merchantPayoutCurrency := m.GetPayoutCurrency()
 
 	pn := &proto.XSollaPaymentNotification{
 		NotificationType: xsollaPaymentNotificationType,
@@ -165,6 +172,7 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 
 	cReq := &grpc.ConvertRateRequest{
 		From: n.order.PaymentMethodOutcomeCurrency.CodeInt,
+		To:   merchantPayoutCurrency.CodeInt,
 	}
 
 	if cRate, err := n.repository.GetConvertRate(context.TODO(), cReq); err != nil {

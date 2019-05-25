@@ -70,10 +70,10 @@ func (n *CardPay) Notify() error {
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		n.order.Status = constant.OrderStatusProjectComplete
+		n.order.PrivateStatus = constant.OrderStatusProjectComplete
 		break
 	case http.StatusUnprocessableEntity:
-		n.order.Status = constant.OrderStatusProjectReject
+		n.order.PrivateStatus = constant.OrderStatusProjectReject
 		break
 	default:
 		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
@@ -149,7 +149,7 @@ func (n *CardPay) setPaymentData(req *proto.CardPayPaymentCallback) error {
 		pd.Created = v.Format(constant.PaymentSystemCardPayDateFormat)
 	}
 
-	if val, ok = OrderAlphabetStatuses[n.order.GetStatus()]; !ok {
+	if val, ok = OrderAlphabetStatuses[n.order.PrivateStatus]; !ok {
 		return errors.New(errorPaymentMethodUnknownStatus)
 	}
 

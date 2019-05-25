@@ -30,6 +30,8 @@ const (
 	notifierHandlerXSolla = "xsolla"
 
 	errorNotifierHandlerNotFound               = "handler for specified payment system not found"
+	errorGetMerchantFailed                     = "gRpc call to get merchant failed"
+	errorMerchantNotFound                      = "merchant not found"
 	errorPaymentMethodUnknown                  = "unknown payment method"
 	errorPaymentMethodRequiredTxtParamNotFound = "param \"%s\" not found in DB transaction record\n"
 	errorPaymentMethodUnknownStatus            = "unknown transaction status"
@@ -52,9 +54,10 @@ const (
 	NotificationActionCheck   = "check"
 	NotificationActionPayment = "payment"
 
-	centrifugoFieldOrderId = "order_id"
-	centrifugoFieldStatus  = "status"
-	centrifugoChanelMask   = "paysuper:order#%s"
+	centrifugoFieldOrderId       = "order_id"
+	centrifugoFieldCustomMessage = "message"
+	centrifugoFieldStatus        = "status"
+	centrifugoChanelMask         = "paysuper:order#%s"
 
 	RetryDlxTimeout   = 600
 	RetryExchangeName = "notify-payment-retry"
@@ -114,11 +117,41 @@ func NewHandler(
 	}
 }
 
+func (h *Handler) GetMerchant(id string) (*proto.Merchant, error) {
+	req := &grpc.GetMerchantByRequest{
+		MerchantId: id,
+	}
+	res, err := h.repository.GetMerchantBy(context.TODO(), req)
+	if err != nil {
+		return nil, errors.New(errorGetMerchantFailed)
+	}
+
+	if res.Item == nil {
+		return nil, errors.New(errorMerchantNotFound)
+	}
+
+	return res.Item, nil
+}
+
 func (h *Handler) GetNotifier() (Notifier, error) {
 	handler, ok := handlers[h.order.Project.GetCallbackProtocol()]
 
 	if !ok {
 		return nil, errors.New(errorNotifierHandlerNotFound)
+	}
+
+	m, err := h.GetMerchant(h.order.Project.MerchantId)
+	if err != nil {
+		return nil, err
+	}
+
+	if m.GetFirstPaymentAt() == nil {
+		m.FirstPaymentAt = ptypes.TimestampNow()
+		_, err := h.repository.UpdateMerchant(context.TODO(), m)
+
+		if err != nil {
+			h.HandleError("gRpc call to update merchant failed", err, Table{"merchant": m})
+		}
 	}
 
 	h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
@@ -163,10 +196,11 @@ func (h *Handler) request(method, url string, req []byte, headers map[string]str
 	return client.Do(httpReq)
 }
 
-func (h *Handler) SendCentrifugoMessage(o *proto.Order) error {
+func (h *Handler) SendCentrifugoMessage(o *proto.Order, message string) error {
 	msg := map[string]interface{}{
-		centrifugoFieldOrderId: o.GetId(),
-		centrifugoFieldStatus:  OrderAlphabetStatuses[o.GetStatus()],
+		centrifugoFieldCustomMessage: message,
+		centrifugoFieldOrderId:       o.GetId(),
+		centrifugoFieldStatus:        OrderAlphabetStatuses[o.PrivateStatus],
 	}
 
 	ch := fmt.Sprintf(centrifugoChanelMask, msg[centrifugoFieldOrderId])

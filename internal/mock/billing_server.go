@@ -420,6 +420,18 @@ func (s *BillingServerOkMock) CheckProjectRequestSignature(
 	return &grpc.CheckProjectRequestSignatureResponse{}, nil
 }
 
+func (s *BillingServerOkMock) GetOrder(ctx context.Context, in *grpc.GetOrderRequest, opts ...client.CallOption) (*billing.Order, error) {
+	panic("implement me")
+}
+
+func (s *BillingServerOkMock) FindAllOrders(ctx context.Context, in *grpc.ListOrdersRequest, opts ...client.CallOption) (*billing.OrderPaginate, error) {
+	panic("implement me")
+}
+
+func (s *BillingServerOkMock) IsOrderCanBePaying(ctx context.Context, in *grpc.IsOrderCanBePayingRequest, opts ...client.CallOption) (*grpc.IsOrderCanBePayingResponse, error) {
+	panic("implement me")
+}
+
 func (s *BillingServerErrorMock) GetProductsForOrder(
 	ctx context.Context,
 	in *grpc.GetProductsForOrderRequest,
@@ -783,5 +795,17 @@ func (s *BillingServerErrorMock) GetProduct(ctx context.Context, in *grpc.Reques
 }
 
 func (s *BillingServerErrorMock) DeleteProduct(ctx context.Context, in *grpc.RequestProduct, opts ...client.CallOption) (*grpc.EmptyResponse, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerErrorMock) GetOrder(ctx context.Context, in *grpc.GetOrderRequest, opts ...client.CallOption) (*billing.Order, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerErrorMock) FindAllOrders(ctx context.Context, in *grpc.ListOrdersRequest, opts ...client.CallOption) (*billing.OrderPaginate, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerErrorMock) IsOrderCanBePaying(ctx context.Context, in *grpc.IsOrderCanBePayingRequest, opts ...client.CallOption) (*grpc.IsOrderCanBePayingResponse, error) {
 	return nil, errors.New(SomeError)
 }
