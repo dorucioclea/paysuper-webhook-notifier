@@ -6,6 +6,7 @@ import (
 	"github.com/InVisionApp/go-health/handlers"
 	"github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/centrifugal/gocent"
+	"github.com/go-redis/redis"
 	"github.com/micro/go-micro"
 	k8s "github.com/micro/kubernetes/go/micro"
 	"github.com/paysuper/paysuper-billing-server/pkg"
@@ -15,7 +16,6 @@ import (
 	"github.com/paysuper/paysuper-recurring-repository/tools"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/handler"
-	selfPkg "github.com/paysuper/paysuper-webhook-notifier/pkg"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	"log"
@@ -36,13 +36,17 @@ type NotifierApplication struct {
 	httpServer *http.Server
 	router     *http.ServeMux
 
-	log          *zap.Logger
-	broker       *rabbitmq.Broker
-	retryBroker  *rabbitmq.Broker
-	taxjarBroker *rabbitmq.Broker
+	log                      *zap.Logger
+	broker                   *rabbitmq.Broker
+	retryBroker              *rabbitmq.Broker
+	taxjarTransactionsBroker *rabbitmq.Broker
+	taxjarRefundsBroker      *rabbitmq.Broker
+	redis                    *redis.Client
 }
 
-type appHealthCheck struct{}
+type appHealthCheck struct {
+	redis *redis.Client
+}
 
 func NewApplication() *NotifierApplication {
 	return &NotifierApplication{}
@@ -51,6 +55,7 @@ func NewApplication() *NotifierApplication {
 func (app *NotifierApplication) Init() {
 	app.initLogger()
 	app.initConfig()
+	app.initRedis()
 	app.initBroker()
 
 	var service micro.Service
@@ -85,6 +90,17 @@ func (app *NotifierApplication) Init() {
 
 	app.router = http.NewServeMux()
 	app.initHealth()
+}
+
+func (app *NotifierApplication) initRedis() {
+	app.redis = redis.NewClient(&redis.Options{
+		Addr:     app.cfg.RedisHost,
+		Password: app.cfg.RedisPassword,
+	})
+
+	if _, err := app.redis.Ping().Result(); err != nil {
+		zap.L().Fatal("Connection to Redis failed", zap.Error(err), zap.Any("options", app.cfg))
+	}
 }
 
 func (app *NotifierApplication) initLogger() {
@@ -142,29 +158,40 @@ func (app *NotifierApplication) initBroker() {
 		app.log.Fatal("Registration RabbitMQ broker handler failed", zap.Error(err))
 	}
 
-	taxjarBroker, err := rabbitmq.NewBroker(app.cfg.BrokerAddress)
-
+	taxjarTransactionsBroker, err := rabbitmq.NewBroker(app.cfg.BrokerAddress)
 	if err != nil {
 		app.log.Fatal(
-			"Creating RabbitMq TaxJar broker failed",
+			"Creating RabbitMq TaxJar transactions broker failed",
 			zap.Error(err),
 			zap.String("amqp_url", app.cfg.BrokerAddress),
 		)
 	}
+	taxjarTransactionsBroker.Opts.ExchangeOpts.Name = constant.TaxjarTransactionsTopicName
 
-	taxjarBroker.Opts.ExchangeOpts.Name = selfPkg.TaxjarRmqOrderTopicName
+	taxjarRefundsBroker, err := rabbitmq.NewBroker(app.cfg.BrokerAddress)
+	if err != nil {
+		app.log.Fatal(
+			"Creating RabbitMq TaxJar transactions broker failed",
+			zap.Error(err),
+			zap.String("amqp_url", app.cfg.BrokerAddress),
+		)
+	}
+	taxjarRefundsBroker.Opts.ExchangeOpts.Name = constant.TaxjarRefundsTopicName
 
 	app.broker = broker
 	app.retryBroker = retryBroker
-	app.taxjarBroker = taxjarBroker
+	app.taxjarTransactionsBroker = taxjarTransactionsBroker
+	app.taxjarRefundsBroker = taxjarRefundsBroker
 }
 
 func (app *NotifierApplication) initHealth() {
 	h := health.New()
 	err := h.AddChecks([]*health.Config{
 		{
-			Name:     "health-check",
-			Checker:  &appHealthCheck{},
+			Name: "health-check",
+			Checker: &appHealthCheck{
+				redis: app.redis,
+			},
 			Interval: time.Duration(1) * time.Second,
 			Fatal:    true,
 		},
@@ -222,7 +249,7 @@ func (app *NotifierApplication) Stop() {
 }
 
 func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
-	h := handler.NewHandler(o, app.repo, app.centCl, app.retryBroker, app.taxjarBroker, d)
+	h := handler.NewHandler(o, app.repo, app.centCl, app.retryBroker, app.taxjarTransactionsBroker, app.taxjarRefundsBroker, app.redis, d)
 
 	if h.RetryCount == 0 && (o.PrivateStatus == constant.OrderStatusPaymentSystemDeclined ||
 		o.PrivateStatus == constant.OrderStatusPaymentSystemCanceled) {
@@ -250,5 +277,8 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 }
 
 func (c *appHealthCheck) Status() (interface{}, error) {
+	if _, err := c.redis.Ping().Result(); err != nil {
+		return "fail", err
+	}
 	return "ok", nil
 }

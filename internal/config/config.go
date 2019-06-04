@@ -8,6 +8,8 @@ type Config struct {
 	BrokerAddress string `envconfig:"BROKER_ADDRESS" default:"amqp://127.0.0.1:5672"`
 	MetricsPort   string `envconfig:"METRICS_PORT" required:"false" default:"8087"`
 	MicroRegistry string `envconfig:"MICRO_REGISTRY" required:"false"`
+	RedisHost     string `envconfig:"REDIS_HOST" default:"127.0.0.1:6379"`
+	RedisPassword string `envconfig:"REDIS_PASSWORD" default:""`
 }
 
 func NewConfig() (*Config, error) {

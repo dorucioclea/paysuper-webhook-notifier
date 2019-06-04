@@ -8,15 +8,17 @@ import (
 	"fmt"
 	"github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/centrifugal/gocent"
+	"github.com/go-redis/redis"
 	"github.com/micro/protobuf/ptypes"
 	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
+	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
 	"github.com/paysuper/paysuper-recurring-repository/tools"
-	"github.com/paysuper/paysuper-webhook-notifier/pkg"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 const (
@@ -43,6 +45,8 @@ const (
 	loggerNotificationRetryEnded       = "[PAYONE_NOTIFIER] Republishing message to RabbitMQ ended with max retry count"
 	loggerErrorNotificationRetryFailed = "[PAYONE_NOTIFIER] Republish message to RabbitMQ failed"
 	LoggerNotificationCentrifugo       = "[PAYONE_NOTIFIER] Send message to centrifugo failed"
+	LoggerNotificationRedis            = "[PAYONE_NOTIFIER] Set mutex in redis failed"
+	loggerErrorNotificationMalfored    = "[PAYONE_NOTIFIER] Can't get notification object for order"
 
 	MIMEApplicationJSON = "application/json"
 
@@ -63,6 +67,11 @@ const (
 	RetryExchangeName = "notify-payment-retry"
 	RetryMaxCount     = 288
 	retryCountHeader  = "x-retry-count"
+
+	taxjarNotificationsKeyMask = "tj:notify:%s"
+	taxjarStatusNameMask       = "taxjar.%s"
+
+	CountryCodeUSA = "US"
 )
 
 var (
@@ -80,16 +89,31 @@ type Notifier interface {
 	Notify() error
 }
 
+type NoitificationMutex struct {
+	MutexKey string
+	data     map[string]string
+}
+
+func (nm *NoitificationMutex) Get(key string) bool {
+	val, ok := nm.data[key]
+	if !ok {
+		return false
+	}
+	return val == "true"
+}
+
 type Handler struct {
 	order            *proto.Order
 	repository       grpc.BillingService
 	centrifugoClient *gocent.Client
 
-	retBrok      *rabbitmq.Broker
-	taxjarBroker *rabbitmq.Broker
-	dlv          amqp.Delivery
-	RetryCount   int32
-	retryProcess bool
+	retBrok                  *rabbitmq.Broker
+	taxjarTransactionsBroker *rabbitmq.Broker
+	taxjarRefundsBroker      *rabbitmq.Broker
+	dlv                      amqp.Delivery
+	RetryCount               int32
+	retryProcess             bool
+	redis                    *redis.Client
 }
 
 func NewHandler(
@@ -97,7 +121,9 @@ func NewHandler(
 	rep grpc.BillingService,
 	cClient *gocent.Client,
 	retBrok *rabbitmq.Broker,
-	taxjarBroker *rabbitmq.Broker,
+	taxjarTransactionsBroker *rabbitmq.Broker,
+	taxjarRefundsBroker *rabbitmq.Broker,
+	redis *redis.Client,
 	dlv amqp.Delivery,
 ) *Handler {
 	rtc := int32(0)
@@ -107,13 +133,15 @@ func NewHandler(
 	}
 
 	return &Handler{
-		order:            o,
-		repository:       rep,
-		centrifugoClient: cClient,
-		retBrok:          retBrok,
-		taxjarBroker:     taxjarBroker,
-		dlv:              dlv,
-		RetryCount:       rtc,
+		order:                    o,
+		repository:               rep,
+		centrifugoClient:         cClient,
+		retBrok:                  retBrok,
+		taxjarTransactionsBroker: taxjarTransactionsBroker,
+		taxjarRefundsBroker:      taxjarRefundsBroker,
+		redis:                    redis,
+		dlv:                      dlv,
+		RetryCount:               rtc,
 	}
 }
 
@@ -156,15 +184,69 @@ func (h *Handler) GetNotifier() (Notifier, error) {
 
 	h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
 
-	if h.order.User.Address.Country == "US" {
-		err := h.taxjarBroker.Publish(pkg.TaxjarRmqOrderTopicName, h.order, nil)
-
-		if err != nil {
-			err = h.handleErrorWithRetry("Message publishing to RMQ queue to send to taxjar failed", err, nil)
-		}
-	}
+	h.trySendToTaxJar()
 
 	return handler(h), nil
+}
+
+func (h *Handler) trySendToTaxJar() {
+	order := h.order
+
+	ps := order.GetPublicStatus()
+	isShouldSend := (ps == constant.OrderPublicStatusProcessed || ps == constant.OrderPublicStatusRefunded) && order.GetCountry() == CountryCodeUSA
+
+	if !isShouldSend {
+		return
+	}
+
+	var (
+		topicName    string
+		tjStatus     string
+		taxjarBroker *rabbitmq.Broker
+	)
+	if ps == constant.OrderPublicStatusRefunded {
+		taxjarBroker = h.taxjarRefundsBroker
+		topicName = constant.TaxjarRefundsTopicName
+		tjStatus = "refund"
+	} else {
+		taxjarBroker = h.taxjarTransactionsBroker
+		topicName = constant.TaxjarTransactionsTopicName
+		tjStatus = "payment"
+	}
+	taxjarStatusName := fmt.Sprintf(taxjarStatusNameMask, tjStatus)
+
+	mutexKey := fmt.Sprintf(taxjarNotificationsKeyMask, order.Id)
+	mutex, err := h.getMutex(mutexKey)
+	if err != nil {
+		_ = h.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
+		return
+	}
+
+	if mutex.Get(tjStatus) == true {
+		order.SetNotificationStatus(taxjarStatusName, true)
+		if _, err := h.repository.UpdateOrder(context.TODO(), order); err != nil {
+			h.HandleError(loggerErrorNotificationUpdate, err, nil)
+		}
+		return
+	}
+
+	publishErr := taxjarBroker.Publish(topicName, order, amqp.Table{"x-retry-count": int32(0)})
+	isSuccess := publishErr == nil
+
+	err = h.setMutex(mutex.MutexKey, tjStatus, isSuccess)
+	if err != nil {
+		h.HandleError(loggerErrorNotificationUpdate, err, nil)
+	}
+
+	order.SetNotificationStatus(taxjarStatusName, true)
+	if _, err := h.repository.UpdateOrder(context.TODO(), order); err != nil {
+		h.HandleError(loggerErrorNotificationUpdate, err, nil)
+	}
+
+	if publishErr != nil {
+		_ = h.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
+		return
+	}
 }
 
 func (h *Handler) validateUrl(cUrl string) (*url.URL, error) {
@@ -241,6 +323,9 @@ func (h *Handler) handleErrorWithRetry(msg string, err error, t Table) error {
 func (h *Handler) retry() (err error) {
 	if h.RetryCount >= RetryMaxCount {
 		zap.S().Infow(loggerNotificationRetryEnded, "order_id", h.order.Id)
+		if err := h.SendCentrifugoMessage(h.order, loggerNotificationRetryEnded); err != nil {
+			h.HandleError(LoggerNotificationCentrifugo, err, nil)
+		}
 		return
 	}
 
@@ -248,8 +333,32 @@ func (h *Handler) retry() (err error) {
 
 	if err != nil {
 		h.HandleError(loggerErrorNotificationRetryFailed, err, Table{"retry_count": h.RetryCount})
+		time.Sleep(5 * time.Second)
+		return h.retry()
 	}
 
 	h.retryProcess = true
 	return
+}
+
+func (h *Handler) getMutex(key string) (*NoitificationMutex, error) {
+	result := &NoitificationMutex{
+		MutexKey: key,
+	}
+	var err error
+	result.data, err = h.redis.HGetAll(key).Result()
+	if err != nil {
+		h.HandleError("get notification mutex failed", err, nil)
+		return nil, err
+	}
+	return result, nil
+}
+
+func (h *Handler) setMutex(key string, field string, val bool) error {
+	err := h.redis.HSet(key, field, val).Err()
+	if err != nil {
+		h.HandleError("set notification mutex failed", err, nil)
+		return err
+	}
+	return nil
 }

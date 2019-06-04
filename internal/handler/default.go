@@ -10,7 +10,6 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
-	"github.com/streadway/amqp"
 	"net/http"
 	"time"
 )
@@ -26,9 +25,8 @@ const (
 
 	centrifugoMsgNotificationUrlEmpty          = "notification url is empty"
 	centrifugoMsgNotificationForDeletedProject = "notification for deleted project"
-	centrifugoMsgTaxjarFailed                  = "send order to taxjar queue failed"
 
-	CountryCodeUSA = "US"
+	psNotificationsKeyMask = "ps:notify:%s"
 )
 
 var orderPublicStatusToEventNameMapping = map[string]string{
@@ -56,42 +54,64 @@ func newDefaultHandler(h *Handler) Notifier {
 }
 
 func (n *Default) Notify() error {
+	order := n.order
 
-	err := n.TrySendToTaxJar()
+	mutexKey := fmt.Sprintf(psNotificationsKeyMask, order.Id)
+	mutex, err := n.getMutex(mutexKey)
 	if err != nil {
-		if err := n.SendCentrifugoMessage(n.order, centrifugoMsgTaxjarFailed); err != nil {
-			n.HandleError(LoggerNotificationCentrifugo, err, nil)
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
+	}
+
+	ps := order.GetPublicStatus()
+
+	// don't send notification for current status if it already sent
+	if mutex.Get(ps) == true {
+		order.SetNotificationStatus(ps, true)
+		if _, err := n.repository.UpdateOrder(context.TODO(), order); err != nil {
+			n.HandleError(loggerErrorNotificationUpdate, err, nil)
 		}
+		return nil
 	}
 
 	url := n.GetNotificationUrl()
 	if url == "" {
-		if err := n.SendCentrifugoMessage(n.order, centrifugoMsgNotificationUrlEmpty); err != nil {
+		if err := n.SendCentrifugoMessage(order, centrifugoMsgNotificationUrlEmpty); err != nil {
 			n.HandleError(LoggerNotificationCentrifugo, err, nil)
 		}
 		return nil
 	}
 
 	req, err := n.getPaymentNotification()
-
 	if err != nil {
-		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
+		n.HandleError(loggerErrorNotificationMalfored, err, nil)
+		return nil
 	}
 
-	resp, err := n.sendRequest(url, req, NotificationActionPayment)
+	isSuccess := false
 
+	resp, sendErr := n.sendRequest(url, req, NotificationActionPayment)
+
+	if sendErr == nil {
+		isSuccess = true
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
+			order.PrivateStatus = constant.OrderStatusProjectComplete
+		} else {
+			order.PrivateStatus = constant.OrderStatusProjectReject
+		}
+	}
+
+	err = n.setMutex(mutexKey, ps, isSuccess)
 	if err != nil {
-		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
+		n.HandleError(LoggerNotificationRedis, err, nil)
 	}
 
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
-		n.order.PrivateStatus = constant.OrderStatusProjectComplete
-	} else {
-		n.order.PrivateStatus = constant.OrderStatusProjectReject
-	}
-
-	if _, err := n.repository.UpdateOrder(context.TODO(), n.order); err != nil {
+	order.SetNotificationStatus(ps, true)
+	if _, err := n.repository.UpdateOrder(context.TODO(), order); err != nil {
 		n.HandleError(loggerErrorNotificationUpdate, err, nil)
+	}
+
+	if sendErr != nil {
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	return nil
@@ -171,7 +191,7 @@ func (n *Default) getSignature(req []byte) string {
 }
 
 func (n *Default) GetNotificationUrl() string {
-	switch n.order.Status {
+	switch n.order.GetPublicStatus() {
 	case constant.OrderPublicStatusProcessed:
 		return n.order.Project.UrlProcessPayment
 	case constant.OrderPublicStatusChargeback:
@@ -186,33 +206,10 @@ func (n *Default) GetNotificationUrl() string {
 }
 
 func (n *Default) GetNotificationEventName() string {
-	ps := n.order.Status
+	ps := n.order.GetPublicStatus()
 	en, ok := orderPublicStatusToEventNameMapping[ps]
 	if ok {
 		return en
 	}
 	return ""
-}
-
-func (n *Default) TrySendToTaxJar() error {
-	order := n.order
-	ps := order.Status
-	isShouldSend := (ps == constant.OrderPublicStatusProcessed || ps == constant.OrderPublicStatusRefunded) && order.GetCountry() == CountryCodeUSA
-
-	if !isShouldSend {
-		return nil
-	}
-
-	topicName := constant.TaxjarTransactionsTopicName
-	if ps == constant.OrderPublicStatusRefunded {
-		topicName = constant.TaxjarRefundsTopicName
-	}
-
-	err := n.retBrok.Publish(topicName, n.order, amqp.Table{"x-retry-count": int32(0)})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
