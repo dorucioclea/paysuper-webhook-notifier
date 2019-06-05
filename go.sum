@@ -676,6 +676,8 @@ github.com/paysuper/paysuper-billing-server v0.0.0-20190604102640-68fdb8b80086 h
 github.com/paysuper/paysuper-billing-server v0.0.0-20190604102640-68fdb8b80086/go.mod h1:UdCYcluOvOPDnpbTxTe/0j9ue3lEbO6IDXwjb36YPDY=
 github.com/paysuper/paysuper-billing-server v0.0.0-20190604134912-99cb2d1cf523 h1:VqD0NNNm0BNsen3fizEESCTJyFTJR6Xq7rraWyeyS5M=
 github.com/paysuper/paysuper-billing-server v0.0.0-20190604134912-99cb2d1cf523/go.mod h1:UdCYcluOvOPDnpbTxTe/0j9ue3lEbO6IDXwjb36YPDY=
+github.com/paysuper/paysuper-billing-server v0.0.0-20190605142456-cd376f984cf4 h1:niC9nBWEhxOo17ILJ3kWb+45qxKqqrW5ejYOTDlpcqk=
+github.com/paysuper/paysuper-billing-server v0.0.0-20190605142456-cd376f984cf4/go.mod h1:WcLEa9ILkNHV+9wJTuxfUsvp4NDVm1WVN2O4BgFTmX8=
 github.com/paysuper/paysuper-recurring-repository v1.0.95 h1:Dc5GQGEyF/ucw7qy/WqArwtEXs15M5+kAmjrG7ICQqE=
 github.com/paysuper/paysuper-recurring-repository v1.0.95/go.mod h1:AMfAm/DunBcDf1sifp0Xc26NEhFy9Y5rUrJ6CWvFi8A=
 github.com/paysuper/paysuper-recurring-repository v1.0.99/go.mod h1:5jCFa70wHevei2I6zA0gg5DWSTDIe17P4OPbTFZCMFs=
@@ -683,6 +685,8 @@ github.com/paysuper/paysuper-recurring-repository v1.0.100 h1:nsE84cYRVX14focRL4
 github.com/paysuper/paysuper-recurring-repository v1.0.100/go.mod h1:5jCFa70wHevei2I6zA0gg5DWSTDIe17P4OPbTFZCMFs=
 github.com/paysuper/paysuper-recurring-repository v1.0.105 h1:WF/9koGHVxyz9L3P1qTVSVZd0++Zx8EouvNy4X8A79o=
 github.com/paysuper/paysuper-recurring-repository v1.0.105/go.mod h1:CKej9aphKnx9eQE6cirz1B1UhGwRBjv+nGl0NeciFxc=
+github.com/paysuper/paysuper-recurring-repository v1.0.106 h1:KrYEMEg9S0WAeC3f+MSaJFaXfViS9DGukD5hGQ6+214=
+github.com/paysuper/paysuper-recurring-repository v1.0.106/go.mod h1:CKej9aphKnx9eQE6cirz1B1UhGwRBjv+nGl0NeciFxc=
 github.com/paysuper/paysuper-tax-service v0.0.0-20190308105725-016a09c27fbd h1:JzUgUK7pIQvf2EQdNV01PkvRy9lZNLvc4Jq4FeAP8vI=
 github.com/paysuper/paysuper-tax-service v0.0.0-20190308105725-016a09c27fbd/go.mod h1:XT/Z0e+14Acndypfqp6f4Luo+WLX9omZAEzUYF9UTCE=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=

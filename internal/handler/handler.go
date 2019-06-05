@@ -69,7 +69,6 @@ const (
 	retryCountHeader  = "x-retry-count"
 
 	taxjarNotificationsKeyMask = "tj:notify:%s"
-	taxjarStatusNameMask       = "taxjar.%s"
 
 	CountryCodeUSA = "US"
 )
@@ -200,20 +199,22 @@ func (h *Handler) trySendToTaxJar() {
 	}
 
 	var (
-		topicName    string
-		tjStatus     string
-		taxjarBroker *rabbitmq.Broker
+		topicName        string
+		tjStatus         string
+		taxjarStatusName string
+		taxjarBroker     *rabbitmq.Broker
 	)
 	if ps == constant.OrderPublicStatusRefunded {
 		taxjarBroker = h.taxjarRefundsBroker
 		topicName = constant.TaxjarRefundsTopicName
 		tjStatus = "refund"
+		taxjarStatusName = constant.TaxjarNotificationStatusRefund
 	} else {
 		taxjarBroker = h.taxjarTransactionsBroker
 		topicName = constant.TaxjarTransactionsTopicName
 		tjStatus = "payment"
+		taxjarStatusName = constant.TaxjarNotificationStatusPayment
 	}
-	taxjarStatusName := fmt.Sprintf(taxjarStatusNameMask, tjStatus)
 
 	statKey := fmt.Sprintf(taxjarNotificationsKeyMask, order.Id)
 	stat, err := h.getStat(statKey)
