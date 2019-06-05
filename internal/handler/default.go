@@ -56,8 +56,8 @@ func newDefaultHandler(h *Handler) Notifier {
 func (n *Default) Notify() error {
 	order := n.order
 
-	mutexKey := fmt.Sprintf(psNotificationsKeyMask, order.Id)
-	mutex, err := n.getMutex(mutexKey)
+	statKey := fmt.Sprintf(psNotificationsKeyMask, order.Id)
+	stat, err := n.getStat(statKey)
 	if err != nil {
 		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
@@ -65,7 +65,7 @@ func (n *Default) Notify() error {
 	ps := order.GetPublicStatus()
 
 	// don't send notification for current status if it already sent
-	if mutex.Get(ps) == true {
+	if stat.Get(ps) == true {
 		order.SetNotificationStatus(ps, true)
 		if _, err := n.repository.UpdateOrder(context.TODO(), order); err != nil {
 			n.HandleError(loggerErrorNotificationUpdate, err, nil)
@@ -100,7 +100,7 @@ func (n *Default) Notify() error {
 		}
 	}
 
-	err = n.setMutex(mutexKey, ps, isSuccess)
+	err = n.setStat(statKey, ps, isSuccess)
 	if err != nil {
 		n.HandleError(LoggerNotificationRedis, err, nil)
 	}

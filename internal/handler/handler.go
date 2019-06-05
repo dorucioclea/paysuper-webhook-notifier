@@ -45,7 +45,7 @@ const (
 	loggerNotificationRetryEnded       = "[PAYONE_NOTIFIER] Republishing message to RabbitMQ ended with max retry count"
 	loggerErrorNotificationRetryFailed = "[PAYONE_NOTIFIER] Republish message to RabbitMQ failed"
 	LoggerNotificationCentrifugo       = "[PAYONE_NOTIFIER] Send message to centrifugo failed"
-	LoggerNotificationRedis            = "[PAYONE_NOTIFIER] Set mutex in redis failed"
+	LoggerNotificationRedis            = "[PAYONE_NOTIFIER] Set stat in redis failed"
 	loggerErrorNotificationMalfored    = "[PAYONE_NOTIFIER] Can't get notification object for order"
 
 	MIMEApplicationJSON = "application/json"
@@ -89,13 +89,13 @@ type Notifier interface {
 	Notify() error
 }
 
-type NoitificationMutex struct {
-	MutexKey string
-	data     map[string]string
+type NoitificationStat struct {
+	StatKey string
+	data    map[string]string
 }
 
-func (nm *NoitificationMutex) Get(key string) bool {
-	val, ok := nm.data[key]
+func (ns *NoitificationStat) Get(key string) bool {
+	val, ok := ns.data[key]
 	if !ok {
 		return false
 	}
@@ -215,14 +215,14 @@ func (h *Handler) trySendToTaxJar() {
 	}
 	taxjarStatusName := fmt.Sprintf(taxjarStatusNameMask, tjStatus)
 
-	mutexKey := fmt.Sprintf(taxjarNotificationsKeyMask, order.Id)
-	mutex, err := h.getMutex(mutexKey)
+	statKey := fmt.Sprintf(taxjarNotificationsKeyMask, order.Id)
+	stat, err := h.getStat(statKey)
 	if err != nil {
 		_ = h.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 		return
 	}
 
-	if mutex.Get(tjStatus) == true {
+	if stat.Get(tjStatus) == true {
 		order.SetNotificationStatus(taxjarStatusName, true)
 		if _, err := h.repository.UpdateOrder(context.TODO(), order); err != nil {
 			h.HandleError(loggerErrorNotificationUpdate, err, nil)
@@ -233,7 +233,7 @@ func (h *Handler) trySendToTaxJar() {
 	publishErr := taxjarBroker.Publish(topicName, order, amqp.Table{"x-retry-count": int32(0)})
 	isSuccess := publishErr == nil
 
-	err = h.setMutex(mutex.MutexKey, tjStatus, isSuccess)
+	err = h.setStat(stat.StatKey, tjStatus, isSuccess)
 	if err != nil {
 		h.HandleError(loggerErrorNotificationUpdate, err, nil)
 	}
@@ -341,23 +341,23 @@ func (h *Handler) retry() (err error) {
 	return
 }
 
-func (h *Handler) getMutex(key string) (*NoitificationMutex, error) {
-	result := &NoitificationMutex{
-		MutexKey: key,
+func (h *Handler) getStat(key string) (*NoitificationStat, error) {
+	result := &NoitificationStat{
+		StatKey: key,
 	}
 	var err error
 	result.data, err = h.redis.HGetAll(key).Result()
 	if err != nil {
-		h.HandleError("get notification mutex failed", err, nil)
+		h.HandleError("get notification stat failed", err, nil)
 		return nil, err
 	}
 	return result, nil
 }
 
-func (h *Handler) setMutex(key string, field string, val bool) error {
+func (h *Handler) setStat(key string, field string, val bool) error {
 	err := h.redis.HSet(key, field, val).Err()
 	if err != nil {
-		h.HandleError("set notification mutex failed", err, nil)
+		h.HandleError("set notification stat failed", err, nil)
 		return err
 	}
 	return nil

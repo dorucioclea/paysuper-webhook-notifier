@@ -5,6 +5,7 @@ require (
 	github.com/InVisionApp/go-health v2.1.0+incompatible
 	github.com/ProtocolONE/go-plugins v0.17.1 // indirect
 	github.com/ProtocolONE/rabbitmq v0.0.0-20190129162844-9f24367e139c
+	github.com/bsm/redis-lock v8.0.0+incompatible
 	github.com/centrifugal/gocent v2.0.2+incompatible
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8
 	github.com/go-redis/redis v6.15.2+incompatible

@@ -2,9 +2,11 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"github.com/InVisionApp/go-health"
 	"github.com/InVisionApp/go-health/handlers"
 	"github.com/ProtocolONE/rabbitmq/pkg"
+	"github.com/bsm/redis-lock"
 	"github.com/centrifugal/gocent"
 	"github.com/go-redis/redis"
 	"github.com/micro/go-micro"
@@ -26,6 +28,7 @@ import (
 const (
 	serviceName                             = "p1paynotifier"
 	centrifugoMsgNotificationDeliveryFailed = "Notification delivery failed"
+	mutexNameMask                           = "%s-%s"
 )
 
 type NotifierApplication struct {
@@ -249,6 +252,19 @@ func (app *NotifierApplication) Stop() {
 }
 
 func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
+	id := o.Id
+	handlerName := o.Project.GetCallbackProtocol()
+	mName := fmt.Sprintf(mutexNameMask, handlerName, id)
+
+	mutex, err := lock.Obtain(app.redis, mName, nil)
+	if err != nil {
+		app.log.Error(err.Error())
+		return err
+	} else if mutex == nil {
+		return nil
+	}
+	defer mutex.Unlock()
+
 	h := handler.NewHandler(o, app.repo, app.centCl, app.retryBroker, app.taxjarTransactionsBroker, app.taxjarRefundsBroker, app.redis, d)
 
 	if h.RetryCount == 0 && (o.PrivateStatus == constant.OrderStatusPaymentSystemDeclined ||
