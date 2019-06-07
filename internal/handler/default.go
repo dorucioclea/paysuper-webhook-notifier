@@ -16,7 +16,8 @@ import (
 
 const (
 	errorNoEventForCurrentStatus = "no event name for current order status"
-	errorDeletedProject          = "project is deleted"
+	loggerErrorDeletedProject    = "project is deleted"
+	loggerErrorProjectUrlEmpty   = "project url empty"
 
 	eventNameSuccess    = "payment.success"
 	eventNameChargeback = "payment.chargeback"
@@ -56,6 +57,13 @@ func newDefaultHandler(h *Handler) Notifier {
 func (n *Default) Notify() error {
 	order := n.order
 
+	if order.Project.Status == pkg.ProjectStatusDeleted {
+		if err := n.SendCentrifugoMessage(n.order, centrifugoMsgNotificationForDeletedProject); err != nil {
+			n.HandleError(LoggerNotificationCentrifugo, err, nil)
+		}
+		return errors.New(loggerErrorDeletedProject)
+	}
+
 	statKey := fmt.Sprintf(psNotificationsKeyMask, order.Id)
 	stat, err := n.getStat(statKey)
 	if err != nil {
@@ -73,34 +81,33 @@ func (n *Default) Notify() error {
 		return nil
 	}
 
-	url := n.GetNotificationUrl()
+	req, err := n.getPaymentNotification()
+	if err != nil {
+		n.HandleError(loggerErrorNotificationMalfored, err, nil)
+		return errors.New(loggerErrorNotificationMalfored)
+	}
+
+	url := n.getNotificationUrl(ps)
 	if url == "" {
 		if err := n.SendCentrifugoMessage(order, centrifugoMsgNotificationUrlEmpty); err != nil {
 			n.HandleError(LoggerNotificationCentrifugo, err, nil)
 		}
-		return nil
+		return errors.New(loggerErrorProjectUrlEmpty)
 	}
-
-	req, err := n.getPaymentNotification()
-	if err != nil {
-		n.HandleError(loggerErrorNotificationMalfored, err, nil)
-		return nil
-	}
-
-	isSuccess := false
 
 	resp, sendErr := n.sendRequest(url, req, NotificationActionPayment)
 
-	if sendErr == nil {
-		isSuccess = true
-		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
-			order.PrivateStatus = constant.OrderStatusProjectComplete
-		} else {
-			order.PrivateStatus = constant.OrderStatusProjectReject
-		}
+	if sendErr != nil {
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
-	err = n.setStat(statKey, ps, isSuccess)
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
+		order.PrivateStatus = constant.OrderStatusProjectComplete
+	} else {
+		order.PrivateStatus = constant.OrderStatusProjectReject
+	}
+
+	err = n.setStat(statKey, ps, true)
 	if err != nil {
 		n.HandleError(LoggerNotificationRedis, err, nil)
 	}
@@ -108,10 +115,6 @@ func (n *Default) Notify() error {
 	order.SetNotificationStatus(ps, true)
 	if _, err := n.repository.UpdateOrder(context.TODO(), order); err != nil {
 		n.HandleError(loggerErrorNotificationUpdate, err, nil)
-	}
-
-	if sendErr != nil {
-		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
 	}
 
 	return nil
@@ -154,7 +157,9 @@ func (n *Default) sendRequest(url string, req interface{}, action string) (*http
 
 func (n *Default) getPaymentNotification() (*OrderNotificationMessage, error) {
 
-	event := n.GetNotificationEventName()
+	ps := n.order.GetPublicStatus()
+
+	event := n.getNotificationEventName(ps)
 	if event == "" {
 		return nil, errors.New(errorNoEventForCurrentStatus)
 	}
@@ -171,13 +176,6 @@ func (n *Default) getPaymentNotification() (*OrderNotificationMessage, error) {
 		Object:      n.order,
 	}
 
-	if n.order.Project.Status == pkg.ProjectStatusDeleted {
-		if err := n.SendCentrifugoMessage(n.order, centrifugoMsgNotificationForDeletedProject); err != nil {
-			n.HandleError(LoggerNotificationCentrifugo, err, nil)
-		}
-		return nil, errors.New(errorDeletedProject)
-	}
-
 	res.Live = n.order.Project.Status == pkg.ProjectStatusInProduction
 
 	return res, nil
@@ -190,8 +188,8 @@ func (n *Default) getSignature(req []byte) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func (n *Default) GetNotificationUrl() string {
-	switch n.order.GetPublicStatus() {
+func (n *Default) getNotificationUrl(publicStatus string) string {
+	switch publicStatus {
 	case constant.OrderPublicStatusProcessed:
 		return n.order.Project.UrlProcessPayment
 	case constant.OrderPublicStatusChargeback:
@@ -205,9 +203,8 @@ func (n *Default) GetNotificationUrl() string {
 	}
 }
 
-func (n *Default) GetNotificationEventName() string {
-	ps := n.order.GetPublicStatus()
-	en, ok := orderPublicStatusToEventNameMapping[ps]
+func (n *Default) getNotificationEventName(publicStatus string) string {
+	en, ok := orderPublicStatusToEventNameMapping[publicStatus]
 	if ok {
 		return en
 	}

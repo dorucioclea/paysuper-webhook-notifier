@@ -437,6 +437,8 @@ github.com/influxdata/line-protocol v0.0.0-20180522152040-32c6aa80de5e/go.mod h1
 github.com/influxdata/platform v0.0.0-20190117200541-d500d3cf5589/go.mod h1:YVhys+JOY4wmXtJvdtkzLhS2K/r/px/vPc+EAddK+pg=
 github.com/influxdata/tdigest v0.0.0-20181121200506-bf2b5ad3c0a9/go.mod h1:Js0mqiSBE6Ffsg94weZZ2c+v/ciT8QRHFOap7EKDrR0=
 github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368/go.mod h1:Wbbw6tYNvwa5dlB6304Sd+82Z3f7PmVZHVKU637d4po=
+github.com/jarcoal/httpmock v1.0.4 h1:jp+dy/+nonJE4g4xbVtl9QdrUNbn6/3hDT5R4nDIZnA=
+github.com/jarcoal/httpmock v1.0.4/go.mod h1:ATjnClrvW/3tijVmpL/va5Z3aAyGvqU3gCT8nX0Txik=
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99/go.mod h1:1lJo3i6rXxKeerYnT8Nvf0QmHCRC1n8sfWVwXF2Frvo=
 github.com/jeffchao/backoff v0.0.0-20140404060208-9d7fd7aa17f2/go.mod h1:xkfESuHriIekR+4RoV+fu91j/CfnYM29Zi2tMFw5iD4=
 github.com/jefferai/jsonx v0.0.0-20160721235117-9cc31c3135ee/go.mod h1:N0t2vlmpe8nyZB5ouIbJQPDSR+mH6oe7xHB9VZHSUzM=
@@ -678,6 +680,10 @@ github.com/paysuper/paysuper-billing-server v0.0.0-20190604134912-99cb2d1cf523 h
 github.com/paysuper/paysuper-billing-server v0.0.0-20190604134912-99cb2d1cf523/go.mod h1:UdCYcluOvOPDnpbTxTe/0j9ue3lEbO6IDXwjb36YPDY=
 github.com/paysuper/paysuper-billing-server v0.0.0-20190605142456-cd376f984cf4 h1:niC9nBWEhxOo17ILJ3kWb+45qxKqqrW5ejYOTDlpcqk=
 github.com/paysuper/paysuper-billing-server v0.0.0-20190605142456-cd376f984cf4/go.mod h1:WcLEa9ILkNHV+9wJTuxfUsvp4NDVm1WVN2O4BgFTmX8=
+github.com/paysuper/paysuper-billing-server v0.0.0-20190608160007-cb2230df16de h1:zwyfTxqdeBrjSaePEulF4NjFVq485KJbIrd928jsi/4=
+github.com/paysuper/paysuper-billing-server v0.0.0-20190608160007-cb2230df16de/go.mod h1:WcLEa9ILkNHV+9wJTuxfUsvp4NDVm1WVN2O4BgFTmX8=
+github.com/paysuper/paysuper-billing-server v0.0.0-20190611111715-71a51404ede6 h1:/vSPAsxpBpTHRgDERCqY7HmTSudIMOmMQAYFJTN4WCE=
+github.com/paysuper/paysuper-billing-server v0.0.0-20190611111715-71a51404ede6/go.mod h1:JbPEGV7wPMxkYacBLMMxSYJgzaALLwxPsr9ppA2PV8Y=
 github.com/paysuper/paysuper-recurring-repository v1.0.95 h1:Dc5GQGEyF/ucw7qy/WqArwtEXs15M5+kAmjrG7ICQqE=
 github.com/paysuper/paysuper-recurring-repository v1.0.95/go.mod h1:AMfAm/DunBcDf1sifp0Xc26NEhFy9Y5rUrJ6CWvFi8A=
 github.com/paysuper/paysuper-recurring-repository v1.0.99/go.mod h1:5jCFa70wHevei2I6zA0gg5DWSTDIe17P4OPbTFZCMFs=
@@ -687,6 +693,8 @@ github.com/paysuper/paysuper-recurring-repository v1.0.105 h1:WF/9koGHVxyz9L3P1q
 github.com/paysuper/paysuper-recurring-repository v1.0.105/go.mod h1:CKej9aphKnx9eQE6cirz1B1UhGwRBjv+nGl0NeciFxc=
 github.com/paysuper/paysuper-recurring-repository v1.0.106 h1:KrYEMEg9S0WAeC3f+MSaJFaXfViS9DGukD5hGQ6+214=
 github.com/paysuper/paysuper-recurring-repository v1.0.106/go.mod h1:CKej9aphKnx9eQE6cirz1B1UhGwRBjv+nGl0NeciFxc=
+github.com/paysuper/paysuper-recurring-repository v1.0.107 h1:zBfPKIkzJDBnAfpf94kioTUlOYBk+6ofzNuGI6S2rDQ=
+github.com/paysuper/paysuper-recurring-repository v1.0.107/go.mod h1:CKej9aphKnx9eQE6cirz1B1UhGwRBjv+nGl0NeciFxc=
 github.com/paysuper/paysuper-tax-service v0.0.0-20190308105725-016a09c27fbd h1:JzUgUK7pIQvf2EQdNV01PkvRy9lZNLvc4Jq4FeAP8vI=
 github.com/paysuper/paysuper-tax-service v0.0.0-20190308105725-016a09c27fbd/go.mod h1:XT/Z0e+14Acndypfqp6f4Luo+WLX9omZAEzUYF9UTCE=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=
@@ -818,6 +826,7 @@ github.com/streadway/amqp v0.0.0-20181107104731-27835f1a64e9/go.mod h1:1WNBiOZtZ
 github.com/streadway/amqp v0.0.0-20181205114330-a314942b2fd9 h1:37QTz/gdHBLQcsmgMTnQDSWCtKzJ7YnfI2M2yTdr4BQ=
 github.com/streadway/amqp v0.0.0-20181205114330-a314942b2fd9/go.mod h1:1WNBiOZtZQLpVAyu0iTduoJL9hEsMloAK5XWrtW0xdY=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
+github.com/stretchr/objx v0.1.1 h1:2vfRuCMp5sSVIDSqO8oNnWJq7mPa6KVP3iPIwFBuy8A=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.2.0/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.2.1/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=

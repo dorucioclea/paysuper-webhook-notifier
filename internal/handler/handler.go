@@ -98,7 +98,7 @@ func (ns *NoitificationStat) Get(key string) bool {
 	if !ok {
 		return false
 	}
-	return val == "true"
+	return val == "1"
 }
 
 type Handler struct {
@@ -291,6 +291,10 @@ func (h *Handler) SendCentrifugoMessage(o *proto.Order, message string) error {
 
 	if err != nil {
 		return err
+	}
+
+	if h.centrifugoClient == nil {
+		return errors.New("centrifugo client is not configured")
 	}
 
 	if err = h.centrifugoClient.Publish(context.Background(), ch, b); err != nil {
