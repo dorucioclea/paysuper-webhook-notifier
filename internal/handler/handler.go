@@ -8,15 +8,17 @@ import (
 	"fmt"
 	"github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/centrifugal/gocent"
+	"github.com/go-redis/redis"
 	"github.com/micro/protobuf/ptypes"
 	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
+	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
 	"github.com/paysuper/paysuper-recurring-repository/tools"
-	"github.com/paysuper/paysuper-webhook-notifier/pkg"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 const (
@@ -30,6 +32,8 @@ const (
 	notifierHandlerXSolla = "xsolla"
 
 	errorNotifierHandlerNotFound               = "handler for specified payment system not found"
+	errorGetMerchantFailed                     = "gRpc call to get merchant failed"
+	errorMerchantNotFound                      = "merchant not found"
 	errorPaymentMethodUnknown                  = "unknown payment method"
 	errorPaymentMethodRequiredTxtParamNotFound = "param \"%s\" not found in DB transaction record\n"
 	errorPaymentMethodUnknownStatus            = "unknown transaction status"
@@ -41,6 +45,8 @@ const (
 	loggerNotificationRetryEnded       = "[PAYONE_NOTIFIER] Republishing message to RabbitMQ ended with max retry count"
 	loggerErrorNotificationRetryFailed = "[PAYONE_NOTIFIER] Republish message to RabbitMQ failed"
 	LoggerNotificationCentrifugo       = "[PAYONE_NOTIFIER] Send message to centrifugo failed"
+	LoggerNotificationRedis            = "[PAYONE_NOTIFIER] Set stat in redis failed"
+	loggerErrorNotificationMalfored    = "[PAYONE_NOTIFIER] Can't get notification object for order"
 
 	MIMEApplicationJSON = "application/json"
 
@@ -52,14 +58,19 @@ const (
 	NotificationActionCheck   = "check"
 	NotificationActionPayment = "payment"
 
-	centrifugoFieldOrderId = "order_id"
-	centrifugoFieldStatus  = "status"
-	centrifugoChanelMask   = "paysuper:order#%s"
+	centrifugoFieldOrderId       = "order_id"
+	centrifugoFieldCustomMessage = "message"
+	centrifugoFieldStatus        = "status"
+	centrifugoChanelMask         = "paysuper:order#%s"
 
 	RetryDlxTimeout   = 600
 	RetryExchangeName = "notify-payment-retry"
 	RetryMaxCount     = 288
 	retryCountHeader  = "x-retry-count"
+
+	taxjarNotificationsKeyMask = "tj:notify:%s"
+
+	CountryCodeUSA = "US"
 )
 
 var (
@@ -77,16 +88,31 @@ type Notifier interface {
 	Notify() error
 }
 
+type NoitificationStat struct {
+	StatKey string
+	data    map[string]string
+}
+
+func (ns *NoitificationStat) Get(key string) bool {
+	val, ok := ns.data[key]
+	if !ok {
+		return false
+	}
+	return val == "1"
+}
+
 type Handler struct {
 	order            *proto.Order
 	repository       grpc.BillingService
 	centrifugoClient *gocent.Client
 
-	retBrok      *rabbitmq.Broker
-	taxjarBroker *rabbitmq.Broker
-	dlv          amqp.Delivery
-	RetryCount   int32
-	retryProcess bool
+	retBrok                  *rabbitmq.Broker
+	taxjarTransactionsBroker *rabbitmq.Broker
+	taxjarRefundsBroker      *rabbitmq.Broker
+	dlv                      amqp.Delivery
+	RetryCount               int32
+	retryProcess             bool
+	redis                    *redis.Client
 }
 
 func NewHandler(
@@ -94,7 +120,9 @@ func NewHandler(
 	rep grpc.BillingService,
 	cClient *gocent.Client,
 	retBrok *rabbitmq.Broker,
-	taxjarBroker *rabbitmq.Broker,
+	taxjarTransactionsBroker *rabbitmq.Broker,
+	taxjarRefundsBroker *rabbitmq.Broker,
+	redis *redis.Client,
 	dlv amqp.Delivery,
 ) *Handler {
 	rtc := int32(0)
@@ -104,14 +132,32 @@ func NewHandler(
 	}
 
 	return &Handler{
-		order:            o,
-		repository:       rep,
-		centrifugoClient: cClient,
-		retBrok:          retBrok,
-		taxjarBroker:     taxjarBroker,
-		dlv:              dlv,
-		RetryCount:       rtc,
+		order:                    o,
+		repository:               rep,
+		centrifugoClient:         cClient,
+		retBrok:                  retBrok,
+		taxjarTransactionsBroker: taxjarTransactionsBroker,
+		taxjarRefundsBroker:      taxjarRefundsBroker,
+		redis:                    redis,
+		dlv:                      dlv,
+		RetryCount:               rtc,
 	}
+}
+
+func (h *Handler) GetMerchant(id string) (*proto.Merchant, error) {
+	req := &grpc.GetMerchantByRequest{
+		MerchantId: id,
+	}
+	res, err := h.repository.GetMerchantBy(context.TODO(), req)
+	if err != nil {
+		return nil, errors.New(errorGetMerchantFailed)
+	}
+
+	if res.Item == nil {
+		return nil, errors.New(errorMerchantNotFound)
+	}
+
+	return res.Item, nil
 }
 
 func (h *Handler) GetNotifier() (Notifier, error) {
@@ -121,17 +167,87 @@ func (h *Handler) GetNotifier() (Notifier, error) {
 		return nil, errors.New(errorNotifierHandlerNotFound)
 	}
 
-	h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
+	m, err := h.GetMerchant(h.order.Project.MerchantId)
+	if err != nil {
+		return nil, err
+	}
 
-	if h.order.User.Address.Country == "US" {
-		err := h.taxjarBroker.Publish(pkg.TaxjarRmqOrderTopicName, h.order, nil)
+	if m.GetFirstPaymentAt() == nil {
+		m.FirstPaymentAt = ptypes.TimestampNow()
+		_, err := h.repository.UpdateMerchant(context.TODO(), m)
 
 		if err != nil {
-			err = h.handleErrorWithRetry("Message publishing to RMQ queue to send to taxjar failed", err, nil)
+			h.HandleError("gRpc call to update merchant failed", err, Table{"merchant": m})
 		}
 	}
 
+	h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
+
+	h.trySendToTaxJar()
+
 	return handler(h), nil
+}
+
+func (h *Handler) trySendToTaxJar() {
+	order := h.order
+
+	ps := order.GetPublicStatus()
+	isShouldSend := (ps == constant.OrderPublicStatusProcessed || ps == constant.OrderPublicStatusRefunded) && order.GetCountry() == CountryCodeUSA
+
+	if !isShouldSend {
+		return
+	}
+
+	var (
+		topicName        string
+		tjStatus         string
+		taxjarStatusName string
+		taxjarBroker     *rabbitmq.Broker
+	)
+	if ps == constant.OrderPublicStatusRefunded {
+		taxjarBroker = h.taxjarRefundsBroker
+		topicName = constant.TaxjarRefundsTopicName
+		tjStatus = "refund"
+		taxjarStatusName = constant.TaxjarNotificationStatusRefund
+	} else {
+		taxjarBroker = h.taxjarTransactionsBroker
+		topicName = constant.TaxjarTransactionsTopicName
+		tjStatus = "payment"
+		taxjarStatusName = constant.TaxjarNotificationStatusPayment
+	}
+
+	statKey := fmt.Sprintf(taxjarNotificationsKeyMask, order.Id)
+	stat, err := h.getStat(statKey)
+	if err != nil {
+		_ = h.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
+		return
+	}
+
+	if stat.Get(tjStatus) == true {
+		order.SetNotificationStatus(taxjarStatusName, true)
+		if _, err := h.repository.UpdateOrder(context.TODO(), order); err != nil {
+			h.HandleError(loggerErrorNotificationUpdate, err, nil)
+		}
+		return
+	}
+
+	publishErr := taxjarBroker.Publish(topicName, order, amqp.Table{"x-retry-count": int32(0)})
+	isSuccess := publishErr == nil
+
+	err = h.setStat(stat.StatKey, tjStatus, isSuccess)
+	if err != nil {
+		h.HandleError(loggerErrorNotificationUpdate, err, nil)
+	}
+
+	order.SetNotificationStatus(taxjarStatusName, true)
+	if _, err := h.repository.UpdateOrder(context.TODO(), order); err != nil {
+		h.HandleError(loggerErrorNotificationUpdate, err, nil)
+	}
+
+	if publishErr != nil {
+		_ = h.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
+		return
+	}
 }
 
 func (h *Handler) validateUrl(cUrl string) (*url.URL, error) {
@@ -163,10 +279,11 @@ func (h *Handler) request(method, url string, req []byte, headers map[string]str
 	return client.Do(httpReq)
 }
 
-func (h *Handler) SendCentrifugoMessage(o *proto.Order) error {
+func (h *Handler) SendCentrifugoMessage(o *proto.Order, message string) error {
 	msg := map[string]interface{}{
-		centrifugoFieldOrderId: o.GetId(),
-		centrifugoFieldStatus:  OrderAlphabetStatuses[o.GetStatus()],
+		centrifugoFieldCustomMessage: message,
+		centrifugoFieldOrderId:       o.GetId(),
+		centrifugoFieldStatus:        OrderAlphabetStatuses[o.PrivateStatus],
 	}
 
 	ch := fmt.Sprintf(centrifugoChanelMask, msg[centrifugoFieldOrderId])
@@ -174,6 +291,10 @@ func (h *Handler) SendCentrifugoMessage(o *proto.Order) error {
 
 	if err != nil {
 		return err
+	}
+
+	if h.centrifugoClient == nil {
+		return errors.New("centrifugo client is not configured")
 	}
 
 	if err = h.centrifugoClient.Publish(context.Background(), ch, b); err != nil {
@@ -207,6 +328,9 @@ func (h *Handler) handleErrorWithRetry(msg string, err error, t Table) error {
 func (h *Handler) retry() (err error) {
 	if h.RetryCount >= RetryMaxCount {
 		zap.S().Infow(loggerNotificationRetryEnded, "order_id", h.order.Id)
+		if err := h.SendCentrifugoMessage(h.order, loggerNotificationRetryEnded); err != nil {
+			h.HandleError(LoggerNotificationCentrifugo, err, nil)
+		}
 		return
 	}
 
@@ -214,8 +338,32 @@ func (h *Handler) retry() (err error) {
 
 	if err != nil {
 		h.HandleError(loggerErrorNotificationRetryFailed, err, Table{"retry_count": h.RetryCount})
+		time.Sleep(5 * time.Second)
+		return h.retry()
 	}
 
 	h.retryProcess = true
 	return
+}
+
+func (h *Handler) getStat(key string) (*NoitificationStat, error) {
+	result := &NoitificationStat{
+		StatKey: key,
+	}
+	var err error
+	result.data, err = h.redis.HGetAll(key).Result()
+	if err != nil {
+		h.HandleError("get notification stat failed", err, nil)
+		return nil, err
+	}
+	return result, nil
+}
+
+func (h *Handler) setStat(key string, field string, val bool) error {
+	err := h.redis.HSet(key, field, val).Err()
+	if err != nil {
+		h.HandleError("set notification stat failed", err, nil)
+		return err
+	}
+	return nil
 }

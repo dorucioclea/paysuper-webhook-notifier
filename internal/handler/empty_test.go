@@ -38,7 +38,7 @@ func (suite *EmptyHandlerTestSuite) SetupTest() {
 			Uuid: bson.NewObjectId().Hex(),
 			Project: &billing.ProjectOrder{
 				Id:               bson.NewObjectId().Hex(),
-				Name:             map[string]string{"en": bson.NewObjectId().Hex()},
+				Name:             map[string]string{"en": "test project 1"},
 				SecretKey:        bson.NewObjectId().Hex(),
 				CallbackProtocol: "empty",
 			},
@@ -59,7 +59,7 @@ func (suite *EmptyHandlerTestSuite) SetupTest() {
 				Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
 				IsActive: true,
 			},
-			Status:                             constant.OrderStatusPaymentSystemComplete,
+			PrivateStatus:                      constant.OrderStatusPaymentSystemComplete,
 			CreatedAt:                          ptypes.TimestampNow(),
 			IsJsonRequest:                      false,
 			AmountInMerchantAccountingCurrency: tools.FormatAmount(10),
@@ -82,6 +82,7 @@ func (suite *EmptyHandlerTestSuite) SetupTest() {
 	}
 
 	retryBroker, err := rabbitmq.NewBroker(cfg.BrokerAddress)
+	assert.NoError(suite.T(), err)
 	retryBroker.Opts.QueueOpts.Args = amqp.Table{
 		"x-dead-letter-exchange":    constant.PayOneTopicNotifyPaymentName,
 		"x-message-ttl":             int32(RetryDlxTimeout * 1000),
