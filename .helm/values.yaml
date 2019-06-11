@@ -17,6 +17,7 @@ backend:
     - BROKER_ADDRESS
     - CENTRIFUGO_URL
     - CENTRIFUGO_KEY
+    - REDIS_HOST
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
