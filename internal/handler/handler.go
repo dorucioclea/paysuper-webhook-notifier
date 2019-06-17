@@ -282,7 +282,7 @@ func (h *Handler) request(method, url string, req []byte, headers map[string]str
 func (h *Handler) SendCentrifugoMessage(o *proto.Order, message string) error {
 	msg := map[string]interface{}{
 		centrifugoFieldCustomMessage: message,
-		centrifugoFieldOrderId:       o.GetId(),
+		centrifugoFieldOrderId:       o.GetUuid(),
 		centrifugoFieldStatus:        OrderAlphabetStatuses[o.PrivateStatus],
 	}
 
