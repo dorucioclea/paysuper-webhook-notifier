@@ -286,7 +286,7 @@ func (h *Handler) SendCentrifugoMessage(o *proto.Order, message string) error {
 		centrifugoFieldStatus:        OrderAlphabetStatuses[o.PrivateStatus],
 	}
 
-	ch := fmt.Sprintf(centrifugoChanelMask, msg[centrifugoFieldOrderId])
+	ch := fmt.Sprintf(centrifugoChanelMask, o.GetUuid())
 	b, err := json.Marshal(msg)
 
 	if err != nil {
