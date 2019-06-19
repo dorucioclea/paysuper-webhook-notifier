@@ -110,6 +110,8 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 		},
 		repository: mock.NewBillingServerOkMock(),
 		redis:      suite.redis,
+		cfg:        cfg,
+		dlv:        amqp.Delivery{RoutingKey: "*"},
 	}
 
 	retryBroker, err := rabbitmq.NewBroker(cfg.BrokerAddress)
@@ -272,7 +274,7 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_getPaymentNotifi
 
 	suite.handler.order.PrivateStatus = 123
 	err := suite.defaultHandler.Notify()
-	assert.EqualError(suite.T(), err, loggerErrorNotificationMalfored)
+	assert.EqualError(suite.T(), err, loggerErrorNotificationMalformed)
 	assert.False(suite.T(), suite.handler.retryProcess)
 
 	info := httpmock.GetCallCountInfo()

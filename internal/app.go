@@ -26,9 +26,9 @@ import (
 )
 
 const (
-	serviceName                             = "p1paynotifier"
-	centrifugoMsgNotificationDeliveryFailed = "Notification delivery failed"
-	mutexNameMask                           = "%s-%s"
+	serviceName   = "p1paynotifier"
+	loggerName    = "PAYSUPER_WEBHOOK_NOTIFIER"
+	mutexNameMask = "%s-%s"
 )
 
 type NotifierApplication struct {
@@ -74,10 +74,10 @@ func (app *NotifierApplication) Init() {
 
 	if app.cfg.MicroRegistry == constant.RegistryKubernetes {
 		service = k8s.NewService(options...)
-		app.log.Info("[PAYSUPER_REPOSITORY] Initialize k8s service")
+		app.log.Info("Initialize k8s service")
 	} else {
 		service = micro.NewService(options...)
-		app.log.Info("[PAYSUPER_REPOSITORY] Initialize micro service")
+		app.log.Info("Initialize micro service")
 	}
 
 	service.Init()
@@ -107,13 +107,13 @@ func (app *NotifierApplication) initRedis() {
 }
 
 func (app *NotifierApplication) initLogger() {
-	var err error
-
-	app.log, err = zap.NewProduction()
+	logger, err := zap.NewProduction()
 
 	if err != nil {
 		log.Fatalf("Application logger initialization failed with error: %s\n", err)
 	}
+
+	app.log = logger.Named(loggerName)
 	zap.ReplaceGlobals(app.log)
 }
 
@@ -201,14 +201,14 @@ func (app *NotifierApplication) initHealth() {
 	})
 
 	if err != nil {
-		app.log.Fatal("[PAYONE_BILLING] Health check register failed", zap.Error(err))
+		app.log.Fatal("Health check register failed", zap.Error(err))
 	}
 
 	if err = h.Start(); err != nil {
-		app.log.Fatal("[PAYONE_BILLING] Health check start failed", zap.Error(err))
+		app.log.Fatal("Health check start failed", zap.Error(err))
 	}
 
-	app.log.Info("[PAYONE_BILLING] Health check listener started", zap.String("port", app.cfg.MetricsPort))
+	app.log.Info("Health check listener started", zap.String("port", app.cfg.MetricsPort))
 
 	app.router.HandleFunc("/health", handlers.NewJSONHandlerFunc(h, nil))
 }
@@ -221,15 +221,15 @@ func (app *NotifierApplication) Run() {
 
 	go func() {
 		if err := app.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			app.log.Fatal("[PAYONE_BILLING] Http server starting failed", zap.Error(err))
+			app.log.Fatal("Http server starting failed", zap.Error(err))
 		}
 	}()
 
-	app.log.Info("[PAYONE_NOTIFIER] Http server started...")
-	app.log.Info("[PAYONE_NOTIFIER] Notifier started...")
+	app.log.Info("Http server started...")
+	app.log.Info("Notifier started...")
 
 	if err := app.broker.Subscribe(nil); err != nil {
-		app.log.Fatal("[PAYONE_NOTIFIER] Notifier subscriber start failed...", zap.Error(err))
+		app.log.Fatal("Notifier subscriber start failed...", zap.Error(err))
 	}
 }
 
@@ -257,21 +257,39 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 	mName := fmt.Sprintf(mutexNameMask, handlerName, id)
 
 	mutex, err := lock.Obtain(app.redis, mName, nil)
+
 	if err != nil {
 		app.log.Error(err.Error())
 		return err
 	} else if mutex == nil {
 		return nil
 	}
-	defer mutex.Unlock()
 
-	h := handler.NewHandler(o, app.repo, app.centCl, app.retryBroker, app.taxjarTransactionsBroker, app.taxjarRefundsBroker, app.redis, d)
+	defer func() {
+		if err := mutex.Unlock(); err != nil {
+			app.log.Error("Mutex unlock failed", zap.Error(err))
+		}
+	}()
 
-	if h.RetryCount == 0 && (o.PrivateStatus == constant.OrderStatusPaymentSystemDeclined ||
-		o.PrivateStatus == constant.OrderStatusPaymentSystemCanceled) {
-		if err := h.SendCentrifugoMessage(o, centrifugoMsgNotificationDeliveryFailed); err != nil {
+	h := handler.NewHandler(
+		o,
+		app.repo,
+		app.centCl,
+		app.retryBroker,
+		app.taxjarTransactionsBroker,
+		app.taxjarRefundsBroker,
+		app.redis,
+		d,
+		app.cfg,
+	)
+
+	if h.RetryCount == 0 && o.IsDeclined() == true {
+		err := h.SendToUserCentrifugo(o)
+
+		if err != nil {
 			h.HandleError(handler.LoggerNotificationCentrifugo, err, nil)
 		}
+
 		return nil
 	}
 
@@ -284,7 +302,9 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 	err = n.Notify()
 
 	if h.RetryCount == 0 {
-		if err := h.SendCentrifugoMessage(o, centrifugoMsgNotificationDeliveryFailed); err != nil {
+		err := h.SendToUserCentrifugo(o)
+
+		if err != nil {
 			h.HandleError(handler.LoggerNotificationCentrifugo, err, nil)
 		}
 	}

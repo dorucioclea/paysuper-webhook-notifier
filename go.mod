@@ -9,7 +9,7 @@ require (
 	github.com/centrifugal/gocent v2.0.2+incompatible
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8
 	github.com/go-redis/redis v6.15.2+incompatible
-	github.com/gogo/protobuf v1.2.0
+	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.3.1
 	github.com/google/uuid v1.1.1
 	github.com/igm/sockjs-go v0.0.0-20181115114233-fd48fe90e436 // indirect
@@ -20,7 +20,7 @@ require (
 	github.com/micro/go-plugins v1.0.0
 	github.com/micro/kubernetes v0.7.0
 	github.com/micro/protobuf v0.0.0-20180321161605-ebd3be6d4fdb
-	github.com/paysuper/paysuper-billing-server v0.0.0-20190611111715-71a51404ede6
+	github.com/paysuper/paysuper-billing-server v0.0.0-20190619081215-3f6522abc7e3
 	github.com/paysuper/paysuper-recurring-repository v1.0.107
 	github.com/prometheus/common v0.2.0
 	github.com/streadway/amqp v0.0.0-20181205114330-a314942b2fd9

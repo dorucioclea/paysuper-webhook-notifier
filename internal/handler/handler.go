@@ -14,6 +14,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
 	"github.com/paysuper/paysuper-recurring-repository/tools"
+	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	"net/http"
@@ -39,14 +40,15 @@ const (
 	errorPaymentMethodUnknownStatus            = "unknown transaction status"
 	errorEmptyUrl                              = "empty string in url"
 	errorNotificationNeedRetry                 = "bad project handler response notification request mark for new send (ID: %s, Action: %s)\n"
+	errorCentrifugoNotInit                     = "centrifugo client is not configured"
 
-	loggerErrorNotificationRetry       = "[PAYONE_NOTIFIER] Project notification failed"
-	loggerErrorNotificationUpdate      = "[PAYONE_NOTIFIER] Repository service return error. Update order failed"
-	loggerNotificationRetryEnded       = "[PAYONE_NOTIFIER] Republishing message to RabbitMQ ended with max retry count"
-	loggerErrorNotificationRetryFailed = "[PAYONE_NOTIFIER] Republish message to RabbitMQ failed"
-	LoggerNotificationCentrifugo       = "[PAYONE_NOTIFIER] Send message to centrifugo failed"
-	LoggerNotificationRedis            = "[PAYONE_NOTIFIER] Set stat in redis failed"
-	loggerErrorNotificationMalfored    = "[PAYONE_NOTIFIER] Can't get notification object for order"
+	loggerErrorNotificationRetry       = "Project notification failed"
+	loggerErrorNotificationUpdate      = "Repository service return error. Update order failed"
+	loggerNotificationRetryEnded       = "Republishing message to RabbitMQ ended with max retry count"
+	loggerErrorNotificationRetryFailed = "Republish message to RabbitMQ failed"
+	LoggerNotificationCentrifugo       = "Send message to centrifugo failed"
+	LoggerNotificationRedis            = "Set stat in redis failed"
+	loggerErrorNotificationMalformed   = "can't get notification object for order"
 
 	MIMEApplicationJSON = "application/json"
 
@@ -61,7 +63,7 @@ const (
 	centrifugoFieldOrderId       = "order_id"
 	centrifugoFieldCustomMessage = "message"
 	centrifugoFieldStatus        = "status"
-	centrifugoChanelMask         = "paysuper:order#%s"
+	centrifugoFieldDecline       = "decline"
 
 	RetryDlxTimeout   = 600
 	RetryExchangeName = "notify-payment-retry"
@@ -88,12 +90,12 @@ type Notifier interface {
 	Notify() error
 }
 
-type NoitificationStat struct {
+type NotificationStat struct {
 	StatKey string
 	data    map[string]string
 }
 
-func (ns *NoitificationStat) Get(key string) bool {
+func (ns *NotificationStat) Get(key string) bool {
 	val, ok := ns.data[key]
 	if !ok {
 		return false
@@ -102,10 +104,9 @@ func (ns *NoitificationStat) Get(key string) bool {
 }
 
 type Handler struct {
-	order            *proto.Order
-	repository       grpc.BillingService
-	centrifugoClient *gocent.Client
-
+	order                    *proto.Order
+	repository               grpc.BillingService
+	centrifugoClient         *gocent.Client
 	retBrok                  *rabbitmq.Broker
 	taxjarTransactionsBroker *rabbitmq.Broker
 	taxjarRefundsBroker      *rabbitmq.Broker
@@ -113,6 +114,7 @@ type Handler struct {
 	RetryCount               int32
 	retryProcess             bool
 	redis                    *redis.Client
+	cfg                      *config.Config
 }
 
 func NewHandler(
@@ -124,6 +126,7 @@ func NewHandler(
 	taxjarRefundsBroker *rabbitmq.Broker,
 	redis *redis.Client,
 	dlv amqp.Delivery,
+	cfg *config.Config,
 ) *Handler {
 	rtc := int32(0)
 
@@ -141,6 +144,7 @@ func NewHandler(
 		redis:                    redis,
 		dlv:                      dlv,
 		RetryCount:               rtc,
+		cfg:                      cfg,
 	}
 }
 
@@ -279,14 +283,7 @@ func (h *Handler) request(method, url string, req []byte, headers map[string]str
 	return client.Do(httpReq)
 }
 
-func (h *Handler) SendCentrifugoMessage(o *proto.Order, message string) error {
-	msg := map[string]interface{}{
-		centrifugoFieldCustomMessage: message,
-		centrifugoFieldOrderId:       o.GetUuid(),
-		centrifugoFieldStatus:        OrderAlphabetStatuses[o.PrivateStatus],
-	}
-
-	ch := fmt.Sprintf(centrifugoChanelMask, o.GetUuid())
+func (h *Handler) sendToCentrifugo(msg map[string]interface{}, ch string) error {
 	b, err := json.Marshal(msg)
 
 	if err != nil {
@@ -294,14 +291,38 @@ func (h *Handler) SendCentrifugoMessage(o *proto.Order, message string) error {
 	}
 
 	if h.centrifugoClient == nil {
-		return errors.New("centrifugo client is not configured")
+		return errors.New(errorCentrifugoNotInit)
 	}
 
-	if err = h.centrifugoClient.Publish(context.Background(), ch, b); err != nil {
-		return err
+	return h.centrifugoClient.Publish(context.Background(), ch, b)
+}
+
+func (h *Handler) SendToUserCentrifugo(order *proto.Order) error {
+	msg := map[string]interface{}{
+		centrifugoFieldOrderId: order.GetUuid(),
+		centrifugoFieldStatus:  OrderAlphabetStatuses[order.PrivateStatus],
+		centrifugoFieldDecline: nil,
 	}
 
-	return nil
+	if order.IsDeclined() == true {
+		code := order.GetPublicDeclineCode()
+		reason := order.GetDeclineReason()
+
+		if code != "" && reason != "" {
+			msg[centrifugoFieldDecline] = map[string]string{"code": code, "reason": reason}
+		}
+	}
+
+	return h.sendToCentrifugo(msg, fmt.Sprintf(h.cfg.CentrifugoUserChannel, order.GetUuid()))
+}
+
+func (h *Handler) sendToAdminCentrifugo(order *proto.Order, message string) error {
+	msg := map[string]interface{}{
+		centrifugoFieldCustomMessage: message,
+		centrifugoFieldOrderId:       order.GetUuid(),
+	}
+
+	return h.sendToCentrifugo(msg, h.cfg.CentrifugoAdminChannel)
 }
 
 func (h *Handler) HandleError(msg string, err error, t Table) {
@@ -328,7 +349,7 @@ func (h *Handler) handleErrorWithRetry(msg string, err error, t Table) error {
 func (h *Handler) retry() (err error) {
 	if h.RetryCount >= RetryMaxCount {
 		zap.S().Infow(loggerNotificationRetryEnded, "order_id", h.order.Id)
-		if err := h.SendCentrifugoMessage(h.order, loggerNotificationRetryEnded); err != nil {
+		if err := h.sendToAdminCentrifugo(h.order, loggerNotificationRetryEnded); err != nil {
 			h.HandleError(LoggerNotificationCentrifugo, err, nil)
 		}
 		return
@@ -346,8 +367,8 @@ func (h *Handler) retry() (err error) {
 	return
 }
 
-func (h *Handler) getStat(key string) (*NoitificationStat, error) {
-	result := &NoitificationStat{
+func (h *Handler) getStat(key string) (*NotificationStat, error) {
+	result := &NotificationStat{
 		StatKey: key,
 	}
 	var err error

@@ -10,6 +10,9 @@ type Config struct {
 	MicroRegistry string `envconfig:"MICRO_REGISTRY" required:"false"`
 	RedisHost     string `envconfig:"REDIS_HOST" default:"127.0.0.1:6379"`
 	RedisPassword string `envconfig:"REDIS_PASSWORD" default:""`
+
+	CentrifugoUserChannel  string `envconfig:"CENTRIFUGO_USER_CHANNEL" default:"paysuper:order#%s"`
+	CentrifugoAdminChannel string `envconfig:"CENTRIFUGO_ADMIN_CHANNEL" default:"paysuper:admin"`
 }
 
 func NewConfig() (*Config, error) {

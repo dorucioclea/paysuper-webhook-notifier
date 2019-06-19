@@ -58,7 +58,7 @@ func (n *Default) Notify() error {
 	order := n.order
 
 	if order.Project.Status == pkg.ProjectStatusDeleted {
-		if err := n.SendCentrifugoMessage(n.order, centrifugoMsgNotificationForDeletedProject); err != nil {
+		if err := n.sendToAdminCentrifugo(n.order, centrifugoMsgNotificationForDeletedProject); err != nil {
 			n.HandleError(LoggerNotificationCentrifugo, err, nil)
 		}
 		return errors.New(loggerErrorDeletedProject)
@@ -83,13 +83,13 @@ func (n *Default) Notify() error {
 
 	req, err := n.getPaymentNotification()
 	if err != nil {
-		n.HandleError(loggerErrorNotificationMalfored, err, nil)
-		return errors.New(loggerErrorNotificationMalfored)
+		n.HandleError(loggerErrorNotificationMalformed, err, nil)
+		return errors.New(loggerErrorNotificationMalformed)
 	}
 
 	url := n.getNotificationUrl(ps)
 	if url == "" {
-		if err := n.SendCentrifugoMessage(order, centrifugoMsgNotificationUrlEmpty); err != nil {
+		if err := n.sendToAdminCentrifugo(order, centrifugoMsgNotificationUrlEmpty); err != nil {
 			n.HandleError(LoggerNotificationCentrifugo, err, nil)
 		}
 		return errors.New(loggerErrorProjectUrlEmpty)

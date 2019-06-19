@@ -123,15 +123,10 @@ func (s *BillingServerOkMock) ChangeMerchant(
 			Id:    bson.NewObjectId().Hex(),
 			Email: "test@unit.test",
 		},
-		Name:            in.Name,
-		AlternativeName: in.AlternativeName,
-		Website:         in.Website,
-		Country: &billing.Country{
-			CodeInt:  643,
-			CodeA3:   "RUS",
-			CodeA2:   in.Country,
-			IsActive: true,
-		},
+		Name:               in.Name,
+		AlternativeName:    in.AlternativeName,
+		Website:            in.Website,
+		Country:            in.Country,
 		State:              in.State,
 		Zip:                in.Zip,
 		City:               in.City,
@@ -807,5 +802,133 @@ func (s *BillingServerErrorMock) FindAllOrders(ctx context.Context, in *grpc.Lis
 }
 
 func (s *BillingServerErrorMock) IsOrderCanBePaying(ctx context.Context, in *grpc.IsOrderCanBePayingRequest, opts ...client.CallOption) (*grpc.IsOrderCanBePayingResponse, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerOkMock) FindByZipCode(
+	ctx context.Context,
+	in *grpc.FindByZipCodeRequest,
+	opts ...client.CallOption,
+) (*grpc.FindByZipCodeResponse, error) {
+	return &grpc.FindByZipCodeResponse{}, nil
+}
+
+func (s *BillingServerErrorMock) FindByZipCode(
+	ctx context.Context,
+	in *grpc.FindByZipCodeRequest,
+	opts ...client.CallOption,
+) (*grpc.FindByZipCodeResponse, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerOkMock) GetCountriesList(
+	ctx context.Context,
+	in *grpc.EmptyRequest,
+	opts ...client.CallOption,
+) (*billing.CountriesList, error) {
+	return &billing.CountriesList{}, nil
+}
+
+func (s *BillingServerErrorMock) GetCountriesList(
+	ctx context.Context,
+	in *grpc.EmptyRequest,
+	opts ...client.CallOption,
+) (*billing.CountriesList, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerOkMock) GetCountry(
+	ctx context.Context,
+	in *billing.GetCountryRequest,
+	opts ...client.CallOption,
+) (*billing.Country, error) {
+	return &billing.Country{}, nil
+}
+
+func (s *BillingServerErrorMock) GetCountry(
+	ctx context.Context,
+	in *billing.GetCountryRequest,
+	opts ...client.CallOption,
+) (*billing.Country, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerOkMock) UpdateCountry(
+	ctx context.Context,
+	in *billing.Country,
+	opts ...client.CallOption,
+) (*billing.Country, error) {
+	return &billing.Country{}, nil
+}
+
+func (s *BillingServerErrorMock) UpdateCountry(
+	ctx context.Context,
+	in *billing.Country,
+	opts ...client.CallOption,
+) (*billing.Country, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerOkMock) GetPriceGroup(
+	ctx context.Context,
+	in *billing.GetPriceGroupRequest,
+	opts ...client.CallOption,
+) (*billing.PriceGroup, error) {
+	return &billing.PriceGroup{}, nil
+}
+
+func (s *BillingServerErrorMock) GetPriceGroup(
+	ctx context.Context,
+	in *billing.GetPriceGroupRequest,
+	opts ...client.CallOption,
+) (*billing.PriceGroup, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerOkMock) UpdatePriceGroup(
+	ctx context.Context,
+	in *billing.PriceGroup,
+	opts ...client.CallOption,
+) (*billing.PriceGroup, error) {
+	return &billing.PriceGroup{}, nil
+}
+
+func (s *BillingServerErrorMock) UpdatePriceGroup(
+	ctx context.Context,
+	in *billing.PriceGroup,
+	opts ...client.CallOption,
+) (*billing.PriceGroup, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerOkMock) SetUserNotifySales(
+	ctx context.Context,
+	in *grpc.SetUserNotifyRequest,
+	opts ...client.CallOption,
+) (*grpc.EmptyResponse, error) {
+	return &grpc.EmptyResponse{}, nil
+}
+
+func (s *BillingServerErrorMock) SetUserNotifySales(
+	ctx context.Context,
+	in *grpc.SetUserNotifyRequest,
+	opts ...client.CallOption,
+) (*grpc.EmptyResponse, error) {
+	return nil, errors.New(SomeError)
+}
+
+func (s *BillingServerOkMock) SetUserNotifyNewRegion(
+	ctx context.Context,
+	in *grpc.SetUserNotifyRequest,
+	opts ...client.CallOption,
+) (*grpc.EmptyResponse, error) {
+	return &grpc.EmptyResponse{}, nil
+}
+
+func (s *BillingServerErrorMock) SetUserNotifyNewRegion(
+	ctx context.Context,
+	in *grpc.SetUserNotifyRequest,
+	opts ...client.CallOption,
+) (*grpc.EmptyResponse, error) {
 	return nil, errors.New(SomeError)
 }
