@@ -2,7 +2,7 @@ WebHook Notification Service
 ====
 
 [![Build Status](https://travis-ci.org/paysuper/paysuper-webhook-notifier.svg?branch=master)](https://travis-ci.org/paysuper/paysuper-webhook-notifier) 
-[![codecov](https://codecov.io/gh/paysuper/paysuper-webhook-notifier/branch/master/graph/badge.svg)](https://codecov.io/gh/paysuper/paysuper-webhook-notifier)
+[![codecov](https://codecov.io/gh/paysuper/paysuper-webhook-notifier/branch/master/graph/badge.svg)](https://codecov.io/gh/paysuper/paysuper-webhook-notifier) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=paysuper_paysuper-webhook-notifier&metric=alert_status)](https://sonarcloud.io/dashboard?id=paysuper_paysuper-webhook-notifier)
 
 This service is rabbitmq consumer for sending other notification from PaySuper to projects.
 Example of sending notifications:
