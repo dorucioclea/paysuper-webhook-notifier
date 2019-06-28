@@ -41,7 +41,7 @@ spec:
         image: {{ $deployment.image }}:{{ $deployment.imageTag }}
         env:
           - name: MICRO_REGISTRY
-            value: "kubernetes"
+            value: "mdns"
           - name: MICRO_SELECTOR
             value: "static"
           - name: MICRO_SERVER_ADDRESS
