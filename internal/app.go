@@ -10,7 +10,6 @@ import (
 	"github.com/centrifugal/gocent"
 	"github.com/go-redis/redis"
 	"github.com/micro/go-micro"
-	k8s "github.com/micro/kubernetes/go/micro"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
@@ -72,14 +71,9 @@ func (app *NotifierApplication) Init() {
 		}),
 	}
 
-	if app.cfg.MicroRegistry == constant.RegistryKubernetes {
-		service = k8s.NewService(options...)
-		app.log.Info("Initialize k8s service")
-	} else {
-		service = micro.NewService(options...)
-		app.log.Info("Initialize micro service")
-	}
+	app.log.Info("Initialize micro service")
 
+	service = micro.NewService(options...)
 	service.Init()
 
 	app.repo = grpc.NewBillingService(pkg.ServiceName, service.Client())
