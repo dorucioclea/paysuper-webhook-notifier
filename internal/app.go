@@ -10,6 +10,7 @@ import (
 	"github.com/centrifugal/gocent"
 	"github.com/go-redis/redis"
 	"github.com/micro/go-micro"
+	"github.com/micro/go-plugins/selector/static"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
@@ -21,6 +22,7 @@ import (
 	"go.uber.org/zap"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -69,6 +71,11 @@ func (app *NotifierApplication) Init() {
 			app.log.Info("Micro service stopped")
 			return nil
 		}),
+	}
+
+	if os.Getenv("MICRO_SELECTOR") == "static" {
+		app.log.Info("Use micro selector `static`")
+		options = append(options, micro.Selector(static.NewSelector()))
 	}
 
 	app.log.Info("Initialize micro service")
