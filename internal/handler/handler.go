@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/centrifugal/gocent"
 	"github.com/go-redis/redis"
 	"github.com/micro/protobuf/ptypes"
@@ -17,6 +16,7 @@ import (
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
+	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	"net/http"
 	"net/url"
 	"time"
@@ -33,8 +33,6 @@ const (
 	notifierHandlerXSolla = "xsolla"
 
 	errorNotifierHandlerNotFound               = "handler for specified payment system not found"
-	errorGetMerchantFailed                     = "gRpc call to get merchant failed"
-	errorMerchantNotFound                      = "merchant not found"
 	errorPaymentMethodUnknown                  = "unknown payment method"
 	errorPaymentMethodRequiredTxtParamNotFound = "param \"%s\" not found in DB transaction record\n"
 	errorPaymentMethodUnknownStatus            = "unknown transaction status"
@@ -107,9 +105,9 @@ type Handler struct {
 	order                    *proto.Order
 	repository               grpc.BillingService
 	centrifugoClient         *gocent.Client
-	retBrok                  *rabbitmq.Broker
-	taxjarTransactionsBroker *rabbitmq.Broker
-	taxjarRefundsBroker      *rabbitmq.Broker
+	retBrok                  rabbitmq.BrokerInterface
+	taxjarTransactionsBroker rabbitmq.BrokerInterface
+	taxjarRefundsBroker      rabbitmq.BrokerInterface
 	dlv                      amqp.Delivery
 	RetryCount               int32
 	retryProcess             bool
@@ -121,9 +119,9 @@ func NewHandler(
 	o *proto.Order,
 	rep grpc.BillingService,
 	cClient *gocent.Client,
-	retBrok *rabbitmq.Broker,
-	taxjarTransactionsBroker *rabbitmq.Broker,
-	taxjarRefundsBroker *rabbitmq.Broker,
+	retBrok rabbitmq.BrokerInterface,
+	taxjarTransactionsBroker rabbitmq.BrokerInterface,
+	taxjarRefundsBroker rabbitmq.BrokerInterface,
 	redis *redis.Client,
 	dlv amqp.Delivery,
 	cfg *config.Config,
@@ -148,41 +146,11 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) GetMerchant(id string) (*proto.Merchant, error) {
-	req := &grpc.GetMerchantByRequest{
-		MerchantId: id,
-	}
-	res, err := h.repository.GetMerchantBy(context.TODO(), req)
-	if err != nil {
-		return nil, errors.New(errorGetMerchantFailed)
-	}
-
-	if res.Item == nil {
-		return nil, errors.New(errorMerchantNotFound)
-	}
-
-	return res.Item, nil
-}
-
 func (h *Handler) GetNotifier() (Notifier, error) {
 	handler, ok := handlers[h.order.Project.GetCallbackProtocol()]
 
 	if !ok {
 		return nil, errors.New(errorNotifierHandlerNotFound)
-	}
-
-	m, err := h.GetMerchant(h.order.Project.MerchantId)
-	if err != nil {
-		return nil, err
-	}
-
-	if m.GetFirstPaymentAt() == nil {
-		m.FirstPaymentAt = ptypes.TimestampNow()
-		_, err := h.repository.UpdateMerchant(context.TODO(), m)
-
-		if err != nil {
-			h.HandleError("gRpc call to update merchant failed", err, Table{"merchant": m})
-		}
 	}
 
 	h.order.ProjectLastRequestedAt = ptypes.TimestampNow()
@@ -206,7 +174,7 @@ func (h *Handler) trySendToTaxJar() {
 		topicName        string
 		tjStatus         string
 		taxjarStatusName string
-		taxjarBroker     *rabbitmq.Broker
+		taxjarBroker     rabbitmq.BrokerInterface
 	)
 	if ps == constant.OrderPublicStatusRefunded {
 		taxjarBroker = h.taxjarRefundsBroker

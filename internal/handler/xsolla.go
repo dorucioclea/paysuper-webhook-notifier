@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/micro/protobuf/ptypes"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
 	proto "github.com/paysuper/paysuper-recurring-repository/pkg/proto/entity"
 	"net/http"
@@ -116,30 +115,22 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 		return nil, err
 	}
 
-	payoutAmount := n.order.GetAmountOutMerchantAccountingCurrency() -
-		n.order.GetPspFeeAmount().GetAmountMerchantCurrency() - n.order.GetPaymentSystemFeeAmount().AmountMerchantCurrency
+	payoutAmount := n.order.GetOrderAmount()
 
 	if n.order.Tax != nil && n.order.Tax.Amount > 0 {
-		payoutAmount -= float64(n.order.Tax.Amount)
+		payoutAmount -= n.order.Tax.Amount
 	}
-
-	m, err := n.GetMerchant(n.order.Project.MerchantId)
-	if err != nil {
-		return nil, err
-	}
-
-	merchantPayoutCurrency := m.GetPayoutCurrency()
 
 	pn := &proto.XSollaPaymentNotification{
 		NotificationType: xsollaPaymentNotificationType,
 		Purchase: &proto.XSollaPurchase{
 			Checkout: &proto.XSollaCheckout{
-				Currency: n.order.GetProjectOutcomeCurrency().CodeA3,
-				Amount:   n.order.GetProjectOutcomeAmount(),
+				Currency: n.order.GetCurrency(),
+				Amount:   n.order.GetOrderAmount(),
 			},
 			Total: &proto.XSollaTotal{
-				Currency: n.order.GetProjectOutcomeCurrency().CodeA3,
-				Amount:   n.order.GetProjectOutcomeAmount(),
+				Currency: n.order.GetCurrency(),
+				Amount:   n.order.GetOrderAmount(),
 			},
 		},
 		User: &proto.XSollaUser{
@@ -159,26 +150,15 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 		},
 		PaymentDetails: &proto.XSollaPaymentDetails{
 			Payment: &proto.XSollaPayment{
-				Currency: n.order.GetPaymentMethodIncomeCurrency().CodeA3,
-				Amount:   n.order.GetPaymentMethodIncomeAmount(),
+				Currency: n.order.GetCurrency(),
+				Amount:   n.order.GetOrderAmount(),
 			},
 			Vat: &proto.XSollaVat{
-				Currency: n.order.GetPaymentMethodIncomeCurrency().CodeA3,
-				Amount:   n.order.Tax.Amount,
+				Currency: n.order.GetCurrency(),
+				Amount:   n.order.GetOrderAmount(),
 			},
 		},
 		CustomParameters: n.order.GetProjectParams(),
-	}
-
-	cReq := &grpc.ConvertRateRequest{
-		From: n.order.PaymentMethodOutcomeCurrency.CodeInt,
-		To:   merchantPayoutCurrency.CodeInt,
-	}
-
-	if cRate, err := n.repository.GetConvertRate(context.TODO(), cReq); err != nil {
-		return nil, err
-	} else {
-		pn.PaymentDetails.PayoutCurrencyRate = cRate.Rate
 	}
 
 	return pn, nil

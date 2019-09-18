@@ -2,7 +2,6 @@ package handler
 
 import (
 	"fmt"
-	rabbitmq "github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/centrifugal/gocent"
 	"github.com/globalsign/mgo/bson"
 	"github.com/go-redis/redis"
@@ -11,12 +10,13 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
-	"github.com/paysuper/paysuper-recurring-repository/tools"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/mock"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
+	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	"net/http"
 	"testing"
 )
@@ -39,49 +39,82 @@ func (suite *HandlerTestSuite) SetupTest() {
 	}
 
 	order := &billing.Order{
-		Id:   bson.NewObjectId().Hex(),
-		Uuid: bson.NewObjectId().Hex(),
+		Id:            bson.NewObjectId().Hex(),
+		Uuid:          bson.NewObjectId().Hex(),
+		Transaction:   bson.NewObjectId().Hex(),
+		Object:        "order",
+		Status:        "processed",
+		PrivateStatus: 4,
+		Description:   "Payment by order",
+		CreatedAt:     ptypes.TimestampNow(),
+		UpdatedAt:     ptypes.TimestampNow(),
+		ReceiptEmail:  "test@unit.test",
+		Issuer: &billing.OrderIssuer{
+			Url:      "http://localhost",
+			Embedded: false,
+		},
+		TotalPaymentAmount: 10.00,
+		Currency:           "RUB",
+		User: &billing.OrderUser{
+			Id:     bson.NewObjectId().Hex(),
+			Object: "user",
+			Email:  "test@unit.test",
+			Ip:     "127.0.0.1",
+			Address: &billing.OrderBillingAddress{
+				Country:    "RU",
+				City:       "St Petersburg",
+				PostalCode: "190000",
+				State:      "SPE",
+			},
+			TechEmail: "eqpAR7uqwC2KBfKZOAEknnKlLcCXtAdn@paysuper.com",
+		},
+		BillingAddress: &billing.OrderBillingAddress{
+			Country: "RU",
+		},
+		Tax: &billing.OrderTax{
+			Type:     "vat",
+			Rate:     0.0,
+			Amount:   0.0,
+			Currency: "RUB",
+		},
+		PaymentMethod: &billing.PaymentMethodOrder{
+			Id:         bson.NewObjectId().Hex(),
+			Name:       "Bank card",
+			ExternalId: "BANKCARD",
+		},
 		Project: &billing.ProjectOrder{
-			Id:               bson.NewObjectId().Hex(),
-			Name:             map[string]string{"en": "test project 1"},
-			SecretKey:        bson.NewObjectId().Hex(),
-			CallbackProtocol: "empty",
+			Id:                bson.NewObjectId().Hex(),
+			MerchantId:        bson.NewObjectId().Hex(),
+			Name:              map[string]string{"ru": "Test", "en": "Test"},
+			SecretKey:         "Unit Test",
+			UrlCheckAccount:   "http://localhost",
+			UrlProcessPayment: "http://localhost",
+			CallbackProtocol:  "empty",
+			Status:            0,
 		},
-		Description:         "some description",
-		ProjectOrderId:      bson.NewObjectId().Hex(),
-		ProjectAccount:      bson.NewObjectId().Hex(),
-		ProjectIncomeAmount: 10,
-		ProjectIncomeCurrency: &billing.Currency{
-			CodeInt:  643,
-			CodeA3:   "RUB",
-			Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-			IsActive: true,
+		ProjectOrderId:             bson.NewObjectId().Hex(),
+		ProjectAccount:             "test@unit.test",
+		PaymentMethodOrderClosedAt: ptypes.TimestampNow(),
+		PaymentMethodPayerAccount:  "400000...0002",
+		PaymentMethodTxnParams: map[string]string{
+			"pan":              "400000...0002",
+			"card_holder":      "UNIT TEST",
+			"emission_country": "US",
+			"token":            "",
+			"rrn":              "",
+			"is_3ds":           "1",
 		},
-		ProjectOutcomeAmount: 10,
-		ProjectOutcomeCurrency: &billing.Currency{
-			CodeInt:  643,
-			CodeA3:   "RUB",
-			Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-			IsActive: true,
+		PaymentRequisites: map[string]string{
+			"bank_issuer_country": "RUSSIA",
+			"pan":                 "400000******0002",
+			"month":               "12",
+			"year":                "2019",
+			"card_brand":          "VISA",
+			"card_type":           "CREDIT",
+			"card_category":       "",
+			"bank_issuer_name":    "",
 		},
-		PrivateStatus:                      constant.OrderStatusPaymentSystemComplete,
-		CreatedAt:                          ptypes.TimestampNow(),
-		IsJsonRequest:                      false,
-		AmountInMerchantAccountingCurrency: tools.FormatAmount(10),
-		PaymentMethodOutcomeAmount:         10,
-		PaymentMethodOutcomeCurrency: &billing.Currency{
-			CodeInt:  643,
-			CodeA3:   "RUB",
-			Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-			IsActive: true,
-		},
-		PaymentMethodIncomeAmount: 10,
-		PaymentMethodIncomeCurrency: &billing.Currency{
-			CodeInt:  643,
-			CodeA3:   "RUB",
-			Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-			IsActive: true,
-		},
+		Type: "order",
 	}
 
 	suite.httpClient = mock.NewCentrifugoTransportStatusOk()
@@ -94,12 +127,6 @@ func (suite *HandlerTestSuite) SetupTest() {
 		},
 	)
 
-	broker, err := rabbitmq.NewBroker(cfg.BrokerAddress)
-
-	if err != nil {
-		assert.FailNow(suite.T(), "RabbitMQ init failed", "%v", err)
-	}
-
 	redisCl := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisHost,
 		Password: cfg.RedisPassword,
@@ -111,13 +138,16 @@ func (suite *HandlerTestSuite) SetupTest() {
 		assert.FailNow(suite.T(), "Redis client init failed", "%v", err)
 	}
 
+	bs := &mock.BillingService{}
+	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
+
 	suite.handler = NewHandler(
 		order,
-		mock.NewBillingServerOkMock(),
+		bs,
 		centCl,
-		broker,
-		broker,
-		broker,
+		mock.NewBrokerMockOk(),
+		mock.NewBrokerMockOk(),
+		mock.NewBrokerMockOk(),
 		redisCl,
 		amqp.Delivery{Headers: amqp.Table{retryCountHeader: int32(1)}},
 		cfg,
@@ -127,9 +157,9 @@ func (suite *HandlerTestSuite) SetupTest() {
 	assert.IsType(suite.T(), &billing.Order{}, suite.handler.order)
 	assert.Implements(suite.T(), (*grpc.BillingService)(nil), suite.handler.repository)
 	assert.IsType(suite.T(), &gocent.Client{}, suite.handler.centrifugoClient)
-	assert.IsType(suite.T(), &rabbitmq.Broker{}, suite.handler.retBrok)
-	assert.IsType(suite.T(), &rabbitmq.Broker{}, suite.handler.taxjarTransactionsBroker)
-	assert.IsType(suite.T(), &rabbitmq.Broker{}, suite.handler.taxjarRefundsBroker)
+	assert.Implements(suite.T(), (*rabbitmq.BrokerInterface)(nil), suite.handler.retBrok)
+	assert.Implements(suite.T(), (*rabbitmq.BrokerInterface)(nil), suite.handler.taxjarTransactionsBroker)
+	assert.Implements(suite.T(), (*rabbitmq.BrokerInterface)(nil), suite.handler.taxjarRefundsBroker)
 	assert.IsType(suite.T(), amqp.Delivery{}, suite.handler.dlv)
 	assert.IsType(suite.T(), &redis.Client{}, suite.handler.redis)
 	assert.IsType(suite.T(), &config.Config{}, suite.handler.cfg)
@@ -173,53 +203,84 @@ func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_SuccessOrder() {
 
 func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_DeclineOrder() {
 	order := &billing.Order{
-		Id:   bson.NewObjectId().Hex(),
-		Uuid: bson.NewObjectId().Hex(),
-		Project: &billing.ProjectOrder{
-			Id:               bson.NewObjectId().Hex(),
-			Name:             map[string]string{"en": "test project 1"},
-			SecretKey:        bson.NewObjectId().Hex(),
-			CallbackProtocol: "empty",
-		},
-		Description:         "some description",
-		ProjectOrderId:      bson.NewObjectId().Hex(),
-		ProjectAccount:      bson.NewObjectId().Hex(),
-		ProjectIncomeAmount: 10,
-		ProjectIncomeCurrency: &billing.Currency{
-			CodeInt:  643,
-			CodeA3:   "RUB",
-			Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-			IsActive: true,
-		},
-		ProjectOutcomeAmount: 10,
-		ProjectOutcomeCurrency: &billing.Currency{
-			CodeInt:  643,
-			CodeA3:   "RUB",
-			Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-			IsActive: true,
-		},
+		Id:            bson.NewObjectId().Hex(),
+		Uuid:          bson.NewObjectId().Hex(),
+		Transaction:   bson.NewObjectId().Hex(),
+		Object:        "order",
+		Status:        constant.OrderPublicStatusRejected,
 		PrivateStatus: constant.OrderStatusPaymentSystemDeclined,
+		Description:   "Payment by order",
+		CreatedAt:     ptypes.TimestampNow(),
+		UpdatedAt:     ptypes.TimestampNow(),
+		ReceiptEmail:  "test@unit.test",
+		Issuer: &billing.OrderIssuer{
+			Url:      "http://localhost",
+			Embedded: false,
+		},
+		TotalPaymentAmount: 10.00,
+		Currency:           "RUB",
+		User: &billing.OrderUser{
+			Id:     bson.NewObjectId().Hex(),
+			Object: "user",
+			Email:  "test@unit.test",
+			Ip:     "127.0.0.1",
+			Address: &billing.OrderBillingAddress{
+				Country:    "RU",
+				City:       "St Petersburg",
+				PostalCode: "190000",
+				State:      "SPE",
+			},
+			TechEmail: "eqpAR7uqwC2KBfKZOAEknnKlLcCXtAdn@paysuper.com",
+		},
+		BillingAddress: &billing.OrderBillingAddress{
+			Country: "RU",
+		},
+		Tax: &billing.OrderTax{
+			Type:     "vat",
+			Rate:     0.0,
+			Amount:   0.0,
+			Currency: "RUB",
+		},
+		PaymentMethod: &billing.PaymentMethodOrder{
+			Id:         bson.NewObjectId().Hex(),
+			Name:       "Bank card",
+			ExternalId: "BANKCARD",
+		},
+		Project: &billing.ProjectOrder{
+			Id:                bson.NewObjectId().Hex(),
+			MerchantId:        bson.NewObjectId().Hex(),
+			Name:              map[string]string{"ru": "Test", "en": "Test"},
+			SecretKey:         "Unit Test",
+			UrlCheckAccount:   "http://localhost",
+			UrlProcessPayment: "http://localhost",
+			CallbackProtocol:  "empty",
+			Status:            0,
+		},
+		ProjectOrderId:             bson.NewObjectId().Hex(),
+		ProjectAccount:             "test@unit.test",
+		PaymentMethodOrderClosedAt: ptypes.TimestampNow(),
+		PaymentMethodPayerAccount:  "400000...0002",
 		PaymentMethodTxnParams: map[string]string{
+			"pan":                           "400000...0002",
+			"card_holder":                   "UNIT TEST",
+			"emission_country":              "US",
+			"token":                         "",
+			"rrn":                           "",
+			"is_3ds":                        "1",
 			pkg.TxnParamsFieldDeclineCode:   "11",
 			pkg.TxnParamsFieldDeclineReason: "Some reason",
 		},
-		CreatedAt:                          ptypes.TimestampNow(),
-		IsJsonRequest:                      false,
-		AmountInMerchantAccountingCurrency: tools.FormatAmount(10),
-		PaymentMethodOutcomeAmount:         10,
-		PaymentMethodOutcomeCurrency: &billing.Currency{
-			CodeInt:  643,
-			CodeA3:   "RUB",
-			Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-			IsActive: true,
+		PaymentRequisites: map[string]string{
+			"bank_issuer_country": "RUSSIA",
+			"pan":                 "400000******0002",
+			"month":               "12",
+			"year":                "2019",
+			"card_brand":          "VISA",
+			"card_type":           "CREDIT",
+			"card_category":       "",
+			"bank_issuer_name":    "",
 		},
-		PaymentMethodIncomeAmount: 10,
-		PaymentMethodIncomeCurrency: &billing.Currency{
-			CodeInt:  643,
-			CodeA3:   "RUB",
-			Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-			IsActive: true,
-		},
+		Type: "order",
 	}
 
 	err := suite.handler.SendToUserCentrifugo(order)
@@ -262,7 +323,7 @@ func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_DeclineOrder() {
 }
 
 func (suite *HandlerTestSuite) TestHandler_sendToAdminCentrifugo_Ok() {
-	err := suite.handler.sendToAdminCentrifugo(suite.handler.order, mock.SomeError)
+	err := suite.handler.sendToAdminCentrifugo(suite.handler.order, "some error")
 	assert.NoError(suite.T(), err)
 
 	typedHttpClient, ok := suite.httpClient.Transport.(*mock.CentrifugoTransportStatusOk)
@@ -288,5 +349,5 @@ func (suite *HandlerTestSuite) TestHandler_sendToAdminCentrifugo_Ok() {
 	assert.Contains(suite.T(), data, centrifugoFieldCustomMessage)
 	assert.Contains(suite.T(), data, centrifugoFieldOrderId)
 	assert.Equal(suite.T(), suite.handler.order.Uuid, data[centrifugoFieldOrderId])
-	assert.Equal(suite.T(), mock.SomeError, data[centrifugoFieldCustomMessage])
+	assert.Equal(suite.T(), "some error", data[centrifugoFieldCustomMessage])
 }

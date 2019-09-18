@@ -138,8 +138,8 @@ func (n *CardPay) setPaymentData(req *proto.CardPayPaymentCallback) error {
 
 	pd := &proto.CallbackCardPayPaymentData{
 		Id:          n.order.GetId(),
-		Amount:      n.order.GetProjectOutcomeAmount(),
-		Currency:    n.order.GetProjectOutcomeCurrency().CodeA3,
+		Amount:      n.order.GetOrderAmount(),
+		Currency:    n.order.GetCurrency(),
 		Description: n.order.GetDescription(),
 	}
 

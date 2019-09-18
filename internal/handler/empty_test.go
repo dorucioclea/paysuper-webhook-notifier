@@ -1,16 +1,15 @@
 package handler
 
 import (
-	"github.com/ProtocolONE/rabbitmq/pkg"
+	"errors"
 	"github.com/globalsign/mgo/bson"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
-	"github.com/paysuper/paysuper-recurring-repository/tools"
+	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/mock"
-	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
+	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"testing"
 )
@@ -32,68 +31,92 @@ func (suite *EmptyHandlerTestSuite) SetupTest() {
 	assert.NotNil(suite.T(), cfg)
 	assert.NotEmpty(suite.T(), cfg.BrokerAddress)
 
+	bs := &mock.BillingService{}
+	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
+
 	suite.handler = &Handler{
 		order: &billing.Order{
-			Id:   bson.NewObjectId().Hex(),
-			Uuid: bson.NewObjectId().Hex(),
+			Id:            bson.NewObjectId().Hex(),
+			Uuid:          bson.NewObjectId().Hex(),
+			Transaction:   bson.NewObjectId().Hex(),
+			Object:        "order",
+			Status:        "processed",
+			PrivateStatus: 4,
+			Description:   "Payment by order",
+			CreatedAt:     ptypes.TimestampNow(),
+			UpdatedAt:     ptypes.TimestampNow(),
+			ReceiptEmail:  "test@unit.test",
+			Issuer: &billing.OrderIssuer{
+				Url:      "http://localhost",
+				Embedded: false,
+			},
+			TotalPaymentAmount: 10.00,
+			Currency:           "RUB",
+			User: &billing.OrderUser{
+				Id:     bson.NewObjectId().Hex(),
+				Object: "user",
+				Email:  "test@unit.test",
+				Ip:     "127.0.0.1",
+				Address: &billing.OrderBillingAddress{
+					Country:    "RU",
+					City:       "St Petersburg",
+					PostalCode: "190000",
+					State:      "SPE",
+				},
+				TechEmail: "eqpAR7uqwC2KBfKZOAEknnKlLcCXtAdn@paysuper.com",
+			},
+			BillingAddress: &billing.OrderBillingAddress{
+				Country: "RU",
+			},
+			Tax: &billing.OrderTax{
+				Type:     "vat",
+				Rate:     0.0,
+				Amount:   0.0,
+				Currency: "RUB",
+			},
+			PaymentMethod: &billing.PaymentMethodOrder{
+				Id:         bson.NewObjectId().Hex(),
+				Name:       "Bank card",
+				ExternalId: "BANKCARD",
+			},
 			Project: &billing.ProjectOrder{
-				Id:               bson.NewObjectId().Hex(),
-				Name:             map[string]string{"en": "test project 1"},
-				SecretKey:        bson.NewObjectId().Hex(),
-				CallbackProtocol: "empty",
+				Id:                bson.NewObjectId().Hex(),
+				MerchantId:        bson.NewObjectId().Hex(),
+				Name:              map[string]string{"ru": "Test", "en": "Test"},
+				SecretKey:         "Unit Test",
+				UrlCheckAccount:   "http://localhost",
+				UrlProcessPayment: "http://localhost",
+				CallbackProtocol:  "empty",
+				Status:            0,
 			},
-			Description:         "some description",
-			ProjectOrderId:      bson.NewObjectId().Hex(),
-			ProjectAccount:      bson.NewObjectId().Hex(),
-			ProjectIncomeAmount: 10,
-			ProjectIncomeCurrency: &billing.Currency{
-				CodeInt:  643,
-				CodeA3:   "RUB",
-				Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-				IsActive: true,
+			ProjectOrderId:             bson.NewObjectId().Hex(),
+			ProjectAccount:             "test@unit.test",
+			PaymentMethodOrderClosedAt: ptypes.TimestampNow(),
+			PaymentMethodPayerAccount:  "400000...0002",
+			PaymentMethodTxnParams: map[string]string{
+				"pan":              "400000...0002",
+				"card_holder":      "UNIT TEST",
+				"emission_country": "US",
+				"token":            "",
+				"rrn":              "",
+				"is_3ds":           "1",
 			},
-			ProjectOutcomeAmount: 10,
-			ProjectOutcomeCurrency: &billing.Currency{
-				CodeInt:  643,
-				CodeA3:   "RUB",
-				Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-				IsActive: true,
+			PaymentRequisites: map[string]string{
+				"bank_issuer_country": "RUSSIA",
+				"pan":                 "400000******0002",
+				"month":               "12",
+				"year":                "2019",
+				"card_brand":          "VISA",
+				"card_type":           "CREDIT",
+				"card_category":       "",
+				"bank_issuer_name":    "",
 			},
-			PrivateStatus:                      constant.OrderStatusPaymentSystemComplete,
-			CreatedAt:                          ptypes.TimestampNow(),
-			IsJsonRequest:                      false,
-			AmountInMerchantAccountingCurrency: tools.FormatAmount(10),
-			PaymentMethodOutcomeAmount:         10,
-			PaymentMethodOutcomeCurrency: &billing.Currency{
-				CodeInt:  643,
-				CodeA3:   "RUB",
-				Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-				IsActive: true,
-			},
-			PaymentMethodIncomeAmount: 10,
-			PaymentMethodIncomeCurrency: &billing.Currency{
-				CodeInt:  643,
-				CodeA3:   "RUB",
-				Name:     &billing.Name{Ru: "Российский рубль", En: "Russian ruble"},
-				IsActive: true,
-			},
+			Type: "order",
 		},
-		repository: mock.NewBillingServerOkMock(),
+		repository: bs,
 	}
 
-	retryBroker, err := rabbitmq.NewBroker(cfg.BrokerAddress)
-	assert.NoError(suite.T(), err)
-	retryBroker.Opts.QueueOpts.Args = amqp.Table{
-		"x-dead-letter-exchange":    constant.PayOneTopicNotifyPaymentName,
-		"x-message-ttl":             int32(RetryDlxTimeout * 1000),
-		"x-dead-letter-routing-key": "*",
-	}
-	retryBroker.Opts.ExchangeOpts.Name = RetryExchangeName + "unit_test"
-
-	assert.NoError(suite.T(), err)
-	assert.NotNil(suite.T(), retryBroker)
-
-	suite.handler.retBrok = retryBroker
+	suite.handler.retBrok = mock.NewBrokerMockOk()
 	suite.handler.RetryCount = RetryMaxCount - 1
 
 	suite.emptyHandler = newEmptyHandler(suite.handler)
@@ -109,7 +132,10 @@ func (suite *EmptyHandlerTestSuite) TestEmptyHandler_Notify_Ok() {
 }
 
 func (suite *EmptyHandlerTestSuite) TestEmptyHandler_Notify_UpdateOrderError() {
-	suite.handler.repository = mock.NewBillingServerErrorMock()
+	bs := &mock.BillingService{}
+	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil, errors.New("some error"))
+
+	suite.handler.repository = bs
 	err := suite.emptyHandler.Notify()
 	assert.NoError(suite.T(), err)
 	assert.True(suite.T(), suite.handler.retryProcess)

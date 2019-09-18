@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"github.com/InVisionApp/go-health"
 	"github.com/InVisionApp/go-health/handlers"
-	"github.com/ProtocolONE/rabbitmq/pkg"
 	"github.com/bsm/redis-lock"
 	"github.com/centrifugal/gocent"
 	"github.com/go-redis/redis"
 	"github.com/micro/go-micro"
-	"github.com/micro/go-plugins/selector/static"
+	"github.com/micro/go-plugins/client/selector/static"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
@@ -20,6 +19,7 @@ import (
 	"github.com/paysuper/paysuper-webhook-notifier/internal/handler"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
+	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	"log"
 	"net/http"
 	"os"
@@ -41,10 +41,10 @@ type NotifierApplication struct {
 	router     *http.ServeMux
 
 	log                      *zap.Logger
-	broker                   *rabbitmq.Broker
-	retryBroker              *rabbitmq.Broker
-	taxjarTransactionsBroker *rabbitmq.Broker
-	taxjarRefundsBroker      *rabbitmq.Broker
+	broker                   rabbitmq.BrokerInterface
+	retryBroker              rabbitmq.BrokerInterface
+	taxjarTransactionsBroker rabbitmq.BrokerInterface
+	taxjarRefundsBroker      rabbitmq.BrokerInterface
 	redis                    *redis.Client
 }
 
@@ -149,12 +149,12 @@ func (app *NotifierApplication) initBroker() {
 		)
 	}
 
-	retryBroker.Opts.QueueOpts.Args = amqp.Table{
+	retryBroker.(*rabbitmq.Broker).Opts.QueueOpts.Args = amqp.Table{
 		"x-dead-letter-exchange":    constant.PayOneTopicNotifyPaymentName,
 		"x-message-ttl":             int32(handler.RetryDlxTimeout * 1000),
 		"x-dead-letter-routing-key": "*",
 	}
-	retryBroker.Opts.ExchangeOpts.Name = handler.RetryExchangeName
+	retryBroker.SetExchangeName(handler.RetryExchangeName)
 
 	err = broker.RegisterSubscriber(constant.PayOneTopicNotifyPaymentName, app.Process)
 
@@ -170,7 +170,7 @@ func (app *NotifierApplication) initBroker() {
 			zap.String("amqp_url", app.cfg.BrokerAddress),
 		)
 	}
-	taxjarTransactionsBroker.Opts.ExchangeOpts.Name = constant.TaxjarTransactionsTopicName
+	taxjarTransactionsBroker.SetExchangeName(constant.TaxjarTransactionsTopicName)
 
 	taxjarRefundsBroker, err := rabbitmq.NewBroker(app.cfg.BrokerAddress)
 	if err != nil {
@@ -180,7 +180,7 @@ func (app *NotifierApplication) initBroker() {
 			zap.String("amqp_url", app.cfg.BrokerAddress),
 		)
 	}
-	taxjarRefundsBroker.Opts.ExchangeOpts.Name = constant.TaxjarRefundsTopicName
+	taxjarRefundsBroker.SetExchangeName(constant.TaxjarRefundsTopicName)
 
 	app.broker = broker
 	app.retryBroker = retryBroker
