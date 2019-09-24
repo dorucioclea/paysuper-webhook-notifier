@@ -14,6 +14,10 @@ func newEmptyHandler(h *Handler) Notifier {
 }
 
 func (n *Empty) Notify() error {
+	if n.order.PrivateStatus != constant.OrderStatusPaymentSystemComplete {
+		return nil
+	}
+
 	n.order.PrivateStatus = constant.OrderStatusProjectComplete
 	_, err := n.repository.UpdateOrder(context.TODO(), n.order)
 

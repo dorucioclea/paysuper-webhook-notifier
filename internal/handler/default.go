@@ -102,7 +102,9 @@ func (n *Default) Notify() error {
 	}
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
-		order.PrivateStatus = constant.OrderStatusProjectComplete
+		if n.order.PrivateStatus == constant.OrderStatusPaymentSystemComplete {
+			order.PrivateStatus = constant.OrderStatusProjectComplete
+		}
 	} else {
 		order.PrivateStatus = constant.OrderStatusProjectReject
 	}
