@@ -253,6 +253,8 @@ func (app *NotifierApplication) Stop() {
 }
 
 func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
+	zap.L().Info("debug 1", zap.String("id", o.Id))
+
 	id := o.Id
 	handlerName := o.Project.GetCallbackProtocol()
 	mName := fmt.Sprintf(mutexNameMask, handlerName, id)
