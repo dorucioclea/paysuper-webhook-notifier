@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	"go.uber.org/zap"
 )
 
 type Empty struct {
@@ -23,6 +24,8 @@ func (n *Empty) Notify() error {
 
 	if err != nil {
 		return n.handleErrorWithRetry(loggerErrorNotificationUpdate, err, nil)
+	} else {
+		zap.L().Info("order status successfully changed", zap.String("id", n.order.Id))
 	}
 
 	return nil
