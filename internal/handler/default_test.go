@@ -345,17 +345,17 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getNotificationUrl() {
 
 	en = defaultHandler.getNotificationUrl("chargeback")
 	assert.NotEmpty(suite.T(), en)
-	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlChargebackPayment)
+	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlProcessPayment)
 	assert.Equal(suite.T(), en, chargebackUrl)
 
 	en = defaultHandler.getNotificationUrl("canceled")
 	assert.NotEmpty(suite.T(), en)
-	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlCancelPayment)
+	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlProcessPayment)
 	assert.Equal(suite.T(), en, cancelUrl)
 
 	en = defaultHandler.getNotificationUrl("refunded")
 	assert.NotEmpty(suite.T(), en)
-	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlRefundPayment)
+	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlProcessPayment)
 	assert.Equal(suite.T(), en, refundUrl)
 }
 
