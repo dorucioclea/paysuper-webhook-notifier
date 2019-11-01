@@ -346,17 +346,17 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getNotificationUrl() {
 	en = defaultHandler.getNotificationUrl("chargeback")
 	assert.NotEmpty(suite.T(), en)
 	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlProcessPayment)
-	assert.Equal(suite.T(), en, chargebackUrl)
+	assert.Equal(suite.T(), en, processUrl)
 
 	en = defaultHandler.getNotificationUrl("canceled")
 	assert.NotEmpty(suite.T(), en)
 	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlProcessPayment)
-	assert.Equal(suite.T(), en, cancelUrl)
+	assert.Equal(suite.T(), en, processUrl)
 
 	en = defaultHandler.getNotificationUrl("refunded")
 	assert.NotEmpty(suite.T(), en)
 	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlProcessPayment)
-	assert.Equal(suite.T(), en, refundUrl)
+	assert.Equal(suite.T(), en, processUrl)
 }
 
 func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getSignature() {
