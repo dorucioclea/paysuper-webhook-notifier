@@ -191,18 +191,8 @@ func (n *Default) getSignature(req []byte) string {
 }
 
 func (n *Default) getNotificationUrl(publicStatus string) string {
-	switch publicStatus {
-	case constant.OrderPublicStatusProcessed:
-		return n.order.Project.UrlProcessPayment
-	case constant.OrderPublicStatusChargeback:
-		return n.order.Project.UrlChargebackPayment
-	case constant.OrderPublicStatusCanceled:
-		return n.order.Project.UrlCancelPayment
-	case constant.OrderPublicStatusRefunded:
-		return n.order.Project.UrlRefundPayment
-	default:
-		return ""
-	}
+	//INFO According #192488 we need to use just one webhook URL for all kind of notifications.
+	return n.order.Project.UrlProcessPayment
 }
 
 func (n *Default) getNotificationEventName(publicStatus string) string {
