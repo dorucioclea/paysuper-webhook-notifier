@@ -335,7 +335,7 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getNotificationUrl() {
 	assert.Equal(suite.T(), ps, constant.OrderPublicStatusProcessed)
 	assert.Equal(suite.T(), ps, "processed")
 
-	en = defaultHandler.getNotificationUrl(ps)
+	en := defaultHandler.getNotificationUrl(ps)
 	assert.NotEmpty(suite.T(), en)
 	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlProcessPayment)
 	assert.Equal(suite.T(), en, processUrl)
