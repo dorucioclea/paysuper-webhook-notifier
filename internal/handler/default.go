@@ -34,6 +34,7 @@ var orderPublicStatusToEventNameMapping = map[string]string{
 	constant.OrderPublicStatusProcessed:  eventNameSuccess,
 	constant.OrderPublicStatusChargeback: eventNameChargeback,
 	constant.OrderPublicStatusCanceled:   eventNameCancel,
+	constant.OrderPublicStatusRejected:   eventNameCancel,
 	constant.OrderPublicStatusRefunded:   eventNameRefund,
 }
 

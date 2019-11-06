@@ -284,16 +284,6 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 		app.cfg,
 	)
 
-	if h.RetryCount == 0 && o.IsDeclined() == true {
-		err := h.SendToUserCentrifugo(o)
-
-		if err != nil {
-			h.HandleError(handler.LoggerNotificationCentrifugo, err, nil)
-		}
-
-		return nil
-	}
-
 	n, err := h.GetNotifier()
 
 	if err != nil {
