@@ -99,7 +99,7 @@ func (n *Default) Notify() error {
 	resp, sendErr := n.sendRequest(url, req, NotificationActionPayment)
 
 	if sendErr != nil {
-		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
+		return n.handleErrorWithRetry(loggerErrorNotificationRetry, sendErr, nil)
 	}
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
