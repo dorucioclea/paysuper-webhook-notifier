@@ -263,7 +263,6 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 		app.log.Error(err.Error())
 		return err
 	} else if mutex == nil {
-		zap.L().Info("debug_1")
 		return nil
 	}
 
@@ -288,11 +287,9 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 	n, err := h.GetNotifier()
 
 	if err != nil {
-		zap.L().Info("debug_2", zap.Error(err))
 		return err
 	}
 
-	zap.L().Info("debug_3")
 	err = n.Notify()
 
 	if h.RetryCount == 0 {
