@@ -170,6 +170,11 @@ func (h *Handler) trySendToTaxJar() {
 		return
 	}
 
+	// Dont't send notification if the Tax rate is empty (see issue #190343)
+	if order.Tax.Rate == 0 {
+		return
+	}
+
 	var (
 		topicName        string
 		tjStatus         string
