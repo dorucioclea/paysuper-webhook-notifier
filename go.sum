@@ -1774,6 +1774,8 @@ gopkg.in/DataDog/dd-trace-go.v0 v0.6.1/go.mod h1:uxRvUTC61u1w+PTfyHNOzLPTCHYt6CJ
 gopkg.in/DataDog/dd-trace-go.v1 v1.16.1/go.mod h1:DVp8HmDh8PuTu2Z0fVVlBsyWaC++fzwVCaGWylTe3tg=
 gopkg.in/ProtocolONE/rabbitmq.v1 v1.0.0-20190719062839-9858d727f3ef h1:yksV6h53P/OsGMQ2LA2Yx8Ys4vCqyUcrMXOq4x0UXfs=
 gopkg.in/ProtocolONE/rabbitmq.v1 v1.0.0-20190719062839-9858d727f3ef/go.mod h1:rD6KjYTsLgxc51iWPhuInSeZ1HyrNdE/sxco/tz/sXs=
+gopkg.in/ProtocolONE/rabbitmq.v1 v1.0.0-20191111132103-cd39b4cf18a0 h1:/bpEwZorRC0+l9QNTrdg9B1bNczci78n9TDnYE5kxI8=
+gopkg.in/ProtocolONE/rabbitmq.v1 v1.0.0-20191111132103-cd39b4cf18a0/go.mod h1:rD6KjYTsLgxc51iWPhuInSeZ1HyrNdE/sxco/tz/sXs=
 gopkg.in/airbrake/gobrake.v2 v2.0.9/go.mod h1:/h5ZAUhDkGaJfjzjKLSjv6zCL6O0LLBxU4K+aSYdM/U=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6 h1:jMFz6MfLP0/4fUyZle81rXUoxOBFi19VUFKVDOQfozc=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=
