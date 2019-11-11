@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/InVisionApp/go-health"
@@ -14,12 +15,12 @@ import (
 	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
-	"github.com/paysuper/paysuper-recurring-repository/tools"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/handler"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -52,8 +53,20 @@ type appHealthCheck struct {
 	redis *redis.Client
 }
 
+type centrifugoHttpTransport struct {
+	Transport http.RoundTripper
+}
+
+type centrifugoContextKey struct {
+	name string
+}
+
 func NewApplication() *NotifierApplication {
 	return &NotifierApplication{}
+}
+
+func NewCentrifugoHttpClient() *http.Client {
+	return &http.Client{Transport: &centrifugoHttpTransport{}}
 }
 
 func (app *NotifierApplication) Init() {
@@ -88,7 +101,7 @@ func (app *NotifierApplication) Init() {
 		gocent.Config{
 			Addr:       app.cfg.CentrifugoUrl,
 			Key:        app.cfg.CentrifugoKey,
-			HTTPClient: tools.NewLoggedHttpClient(zap.S()),
+			HTTPClient: NewCentrifugoHttpClient(),
 		},
 	)
 
@@ -308,4 +321,46 @@ func (c *appHealthCheck) Status() (interface{}, error) {
 		return "fail", err
 	}
 	return "ok", nil
+}
+
+func (m *centrifugoHttpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx := context.WithValue(req.Context(), &centrifugoContextKey{name: "CentrifugoRequestStart"}, time.Now())
+	req = req.WithContext(ctx)
+
+	var reqBody []byte
+
+	if req.Body != nil {
+		reqBody, _ = ioutil.ReadAll(req.Body)
+	}
+
+	req.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
+	rsp, err := http.DefaultTransport.RoundTrip(req)
+
+	if err != nil {
+		return rsp, err
+	}
+
+	var rspBody []byte
+
+	if rsp.Body != nil {
+		rspBody, err = ioutil.ReadAll(rsp.Body)
+
+		if err != nil {
+			return rsp, err
+		}
+	}
+
+	rsp.Body = ioutil.NopCloser(bytes.NewBuffer(rspBody))
+	req.Header.Set("Authorization", "apikey ****")
+
+	zap.L().Info(
+		req.URL.Path,
+		zap.Any("request_headers", req.Header),
+		zap.ByteString("request_body", reqBody),
+		zap.Int("response_status", rsp.StatusCode),
+		zap.Any("response_headers", rsp.Header),
+		zap.ByteString("response_body", rspBody),
+	)
+
+	return rsp, err
 }
