@@ -16,6 +16,9 @@ import (
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/handler"
+	"github.com/paysuper/paysuper-webhook-notifier/internal/service"
+	pkg2 "github.com/paysuper/paysuper-webhook-notifier/pkg"
+	self "github.com/paysuper/paysuper-webhook-notifier/pkg/proto/grpc"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
@@ -27,7 +30,6 @@ import (
 )
 
 const (
-	serviceName   = "p1paynotifier"
 	loggerName    = "PAYSUPER_WEBHOOK_NOTIFIER"
 	mutexNameMask = "%s-%s"
 )
@@ -48,6 +50,8 @@ type NotifierApplication struct {
 	taxjarTransactionsBroker rabbitmq.BrokerInterface
 	taxjarRefundsBroker      rabbitmq.BrokerInterface
 	redis                    *redis.Client
+
+	svc *service.Service
 }
 
 type appHealthCheck struct {
@@ -79,7 +83,7 @@ func (app *NotifierApplication) Init() {
 	var service micro.Service
 
 	options := []micro.Option{
-		micro.Name(serviceName),
+		micro.Name(pkg2.ServiceName),
 		micro.Version(constant.PayOneMicroserviceVersion),
 		micro.AfterStop(func() error {
 			app.log.Info("Micro service stopped")
@@ -96,6 +100,11 @@ func (app *NotifierApplication) Init() {
 
 	service = micro.NewService(options...)
 	service.Init()
+
+	if err := self.RegisterNotifierServiceHandler(service.Server(), app.svc); err != nil {
+		app.log.Fatal("Can't register grpc service handler")
+		return
+	}
 
 	app.repo = grpc.NewBillingService(pkg.ServiceName, service.Client())
 	app.centrifugoPaymentForm = handler.NewCentrifugo(app.cfg.CentrifugoPaymentForm, NewCentrifugoHttpClient())

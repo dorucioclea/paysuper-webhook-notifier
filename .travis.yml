@@ -9,7 +9,7 @@ addons:
 stages:
 - test
 - name: deploy
-  if: branch = develop
+  if: branch IN (develop, feature/190525)
 env:
   global:
   - GO111MODULE=on

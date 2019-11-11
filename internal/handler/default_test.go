@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/globalsign/mgo/bson"
@@ -29,7 +28,7 @@ var (
 	cancelUrl     = "http://localhost/cancel"
 	refundUrl     = "http://localhost/refund"
 
-	dummySignature = "10e4a4e3432c0dbb49f656cc3621c1d55fafb66149d185995e3affc18047d01a"
+	dummySignature = "79727ab2d26d0baf364d5cf9c4cc2a9bb54e231dfe67b5889862b5b86a136eca"
 )
 
 type DefaultHandlerTestSuite struct {
@@ -147,6 +146,7 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 		redis:      suite.redis,
 		cfg:        cfg,
 		dlv:        amqp.Delivery{RoutingKey: "*"},
+		sender:		NewHttpSenderImpl(),
 	}
 
 	suite.handler.centrifugoPaymentForm = NewCentrifugo(cfg.CentrifugoPaymentForm, mock.NewCentrifugoTransportStatusOk())
@@ -365,18 +365,6 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getNotificationUrl() {
 	assert.Equal(suite.T(), en, processUrl)
 }
 
-func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getSignature() {
-	defaultHandler := &Default{}
-	defaultHandler.Handler = suite.handler
-
-	req := &OrderNotificationMessage{}
-	b, err := json.Marshal(req)
-	assert.NoError(suite.T(), err)
-
-	s := defaultHandler.getSignature(b)
-	assert.Equal(suite.T(), s, dummySignature)
-}
-
 func (suite *DefaultHandlerTestSuite) TestDefaultHandler_sendRequest_signatureCheck_Ok() {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
@@ -390,6 +378,6 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_sendRequest_signatureCh
 	defaultHandler := &Default{}
 	defaultHandler.Handler = suite.handler
 
-	_, err := defaultHandler.sendRequest(processUrl, &OrderNotificationMessage{}, "")
+	_, err := defaultHandler.sendRequest(processUrl, &OrderNotificationMessage{}, "", "")
 	assert.NoError(suite.T(), err)
 }

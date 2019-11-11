@@ -36,6 +36,7 @@ const (
 	errorPaymentMethodUnknownStatus            = "unknown transaction status"
 	errorEmptyUrl                              = "empty string in url"
 	errorNotificationNeedRetry                 = "bad project handler response notification request mark for new send (ID: %s, Action: %s)\n"
+	errorHttpRequestFailed                     = "http request failed"
 
 	loggerErrorNotificationRetry       = "Project notification failed"
 	loggerErrorNotificationUpdate      = "Repository service return error. Update order failed"
@@ -52,13 +53,16 @@ const (
 	HeaderSignature     = "Signature"
 	HeaderAuthorization = "Authorization"
 
-	NotificationActionCheck   = "check"
-	NotificationActionPayment = "payment"
+	NotificationActionCheck     = "check"
+	NotificationActionPayment   = "payment"
+	NotificationActionCheckUser = "check_user"
 
 	centrifugoFieldOrderId       = "order_id"
 	centrifugoFieldCustomMessage = "message"
 	centrifugoFieldStatus        = "status"
 	centrifugoFieldDecline       = "decline"
+	centrifugoFieldResponce      = "responce"
+	centrifugoFieldTestCase      = "test_case"
 
 	RetryDlxTimeout   = 600
 	RetryExchangeName = "notify-payment-retry"
@@ -111,6 +115,7 @@ type Handler struct {
 	cfg                      *config.Config
 	centrifugoPaymentForm    CentrifugoInterface
 	centrifugoDashboard      CentrifugoInterface
+	sender                   HttpSender
 }
 
 func NewHandler(
@@ -283,6 +288,16 @@ func (h *Handler) sendToAdminCentrifugo(order *proto.Order, message string) erro
 	}
 
 	return h.centrifugoDashboard.Publish(context.Background(), h.cfg.CentrifugoAdminChannel, msg)
+}
+
+func (h *Handler) sendToMerchantTestingCentrifugo(order *proto.Order, testCase string, response *http.Response) error {
+	msg := map[string]interface{}{
+		centrifugoFieldOrderId:  order.GetUuid(),
+		centrifugoFieldResponce: response,
+		centrifugoFieldTestCase: testCase,
+	}
+
+	return h.sendToCentrifugo(msg, fmt.Sprintf(h.cfg.CentrifugoMerchantTestingChannel, order.GetMerchantId()))
 }
 
 func (h *Handler) HandleError(msg string, err error, t Table) {
