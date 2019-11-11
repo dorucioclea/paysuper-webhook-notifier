@@ -17,6 +17,8 @@ import (
 	"github.com/paysuper/paysuper-recurring-repository/tools"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/handler"
+	"github.com/paysuper/paysuper-webhook-notifier/internal/service"
+	self "github.com/paysuper/paysuper-webhook-notifier/pkg/proto/grpc"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
@@ -46,6 +48,8 @@ type NotifierApplication struct {
 	taxjarTransactionsBroker rabbitmq.BrokerInterface
 	taxjarRefundsBroker      rabbitmq.BrokerInterface
 	redis                    *redis.Client
+
+	svc *service.Service
 }
 
 type appHealthCheck struct {
@@ -82,6 +86,11 @@ func (app *NotifierApplication) Init() {
 
 	service = micro.NewService(options...)
 	service.Init()
+
+	if err := self.RegisterNotifierServiceHandler(service.Server(), app.svc); err != nil {
+		app.log.Fatal("Can't register grpc service handler")
+		return
+	}
 
 	app.repo = grpc.NewBillingService(pkg.ServiceName, service.Client())
 	app.centCl = gocent.New(

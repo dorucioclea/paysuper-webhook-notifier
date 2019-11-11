@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option go_package = "github.com/paysuper/paysuper-webhook-notifier/pkg/proto/grpc";
+package grpc;
+
+service NotifierService {
+    rpc CheckUser(CheckUserRequest) returns (CheckUserResponse) {}
+}
+
+message CheckUserRequest {
+    string url = 1;
+    User user = 2;
+    string secret_key = 3;
+}
+
+message CheckUserResponse {
+    int32 status = 1;
+    string message = 2;
+}
+
+message User {
+    // @inject_tag: json:"project_account"
+    string project_account = 1;
+    // @inject_tag: json:"name"
+    string name = 2;
+    // @inject_tag: json:"email"
+    string email = 3;
+    // @inject_tag: json:"phone"
+    string phone = 4;
+    // @inject_tag: json:"metadata"
+    map<string, string> metadata = 5;
+}

@@ -39,6 +39,7 @@ const (
 	errorEmptyUrl                              = "empty string in url"
 	errorNotificationNeedRetry                 = "bad project handler response notification request mark for new send (ID: %s, Action: %s)\n"
 	errorCentrifugoNotInit                     = "centrifugo client is not configured"
+	errorHttpRequestFailed                     = "http request failed"
 
 	loggerErrorNotificationRetry       = "Project notification failed"
 	loggerErrorNotificationUpdate      = "Repository service return error. Update order failed"
@@ -57,11 +58,14 @@ const (
 
 	NotificationActionCheck   = "check"
 	NotificationActionPayment = "payment"
+	NotificationActionCheckUser = "check_user"
 
 	centrifugoFieldOrderId       = "order_id"
 	centrifugoFieldCustomMessage = "message"
 	centrifugoFieldStatus        = "status"
 	centrifugoFieldDecline       = "decline"
+	centrifugoFieldResponce      = "responce"
+	centrifugoFieldTestCase      = "test_case"
 
 	RetryDlxTimeout   = 600
 	RetryExchangeName = "notify-payment-retry"
@@ -113,6 +117,7 @@ type Handler struct {
 	retryProcess             bool
 	redis                    *redis.Client
 	cfg                      *config.Config
+	sender                   HttpSender
 }
 
 func NewHandler(
@@ -293,6 +298,16 @@ func (h *Handler) sendToAdminCentrifugo(order *proto.Order, message string) erro
 	msg := map[string]interface{}{
 		centrifugoFieldCustomMessage: message,
 		centrifugoFieldOrderId:       order.GetUuid(),
+	}
+
+	return h.sendToCentrifugo(msg, h.cfg.CentrifugoAdminChannel)
+}
+
+func (h *Handler) sendToMerchantTestingCentrifugo(order *proto.Order, testCase string, response *http.Response) error {
+	msg := map[string]interface{}{
+		centrifugoFieldOrderId:  order.GetUuid(),
+		centrifugoFieldResponce: response,
+		centrifugoFieldTestCase: testCase,
 	}
 
 	return h.sendToCentrifugo(msg, h.cfg.CentrifugoAdminChannel)

@@ -4,12 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
+	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	"go.uber.org/zap"
 	"net/http"
 	"time"
 )
@@ -28,6 +29,9 @@ const (
 	centrifugoMsgNotificationForDeletedProject = "notification for deleted project"
 
 	psNotificationsKeyMask = "ps:notify:%s"
+
+	errorCantNotifyBillingServer = "can't notify billing server testing results"
+	errorCantNotifyMerchantServer = "can't notify merchant in centrifugo"
 )
 
 var orderPublicStatusToEventNameMapping = map[string]string{
@@ -57,6 +61,7 @@ func newDefaultHandler(h *Handler) Notifier {
 
 func (n *Default) Notify() error {
 	order := n.order
+	notifyRequest := &grpc.NotifyWebhookTestResultsRequest{TestCase: order.TestingCase, ProjectId: order.GetProjectId(), Type: order.ProductType}
 
 	if order.Project.Status == pkg.ProjectStatusDeleted {
 		if err := n.sendToAdminCentrifugo(n.order, centrifugoMsgNotificationForDeletedProject); err != nil {
@@ -84,14 +89,26 @@ func (n *Default) Notify() error {
 
 	req, err := n.getPaymentNotification()
 	if err != nil {
-		n.HandleError(loggerErrorNotificationMalformed, err, nil)
+		if len(order.TestingCase) == 0 {
+			n.HandleError(loggerErrorNotificationMalformed, err, nil)
+		}
 		return errors.New(loggerErrorNotificationMalformed)
 	}
 
 	url := n.getNotificationUrl(ps)
 	if url == "" {
-		if err := n.sendToAdminCentrifugo(order, centrifugoMsgNotificationUrlEmpty); err != nil {
-			n.HandleError(LoggerNotificationCentrifugo, err, nil)
+		if len(order.TestingCase) > 0 {
+			notifyRequest.IsPassed = false
+			if _, err := n.repository.NotifyWebhookTestResults(context.TODO(), notifyRequest); err != nil {
+				zap.S().Errorw(errorCantNotifyBillingServer, "err", err)
+			}
+			if err := n.sendToMerchantTestingCentrifugo(order, order.TestingCase, nil); err != nil {
+				zap.S().Errorw(errorCantNotifyMerchantServer, "err", err)
+			}
+		} else {
+			if err := n.sendToAdminCentrifugo(order, centrifugoMsgNotificationUrlEmpty); err != nil {
+				n.HandleError(LoggerNotificationCentrifugo, err, nil)
+			}
 		}
 		return errors.New(loggerErrorProjectUrlEmpty)
 	}
@@ -99,60 +116,68 @@ func (n *Default) Notify() error {
 	resp, sendErr := n.sendRequest(url, req, NotificationActionPayment)
 
 	if sendErr != nil {
-		return n.handleErrorWithRetry(loggerErrorNotificationRetry, sendErr, nil)
+		if len(order.TestingCase) > 0 {
+			notifyRequest.IsPassed = false
+			if _, err := n.repository.NotifyWebhookTestResults(context.TODO(), notifyRequest); err != nil {
+				zap.S().Errorw(errorCantNotifyBillingServer, "err", err)
+			}
+			if err := n.sendToMerchantTestingCentrifugo(order, order.TestingCase, nil); err != nil {
+				zap.S().Errorw(errorCantNotifyMerchantServer, "err", err)
+			}
+		} else {
+			return n.handleErrorWithRetry(loggerErrorNotificationRetry, sendErr, nil)
+		}
 	}
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
 		if n.order.PrivateStatus == constant.OrderStatusPaymentSystemComplete {
 			order.PrivateStatus = constant.OrderStatusProjectComplete
 		}
+		if len(order.TestingCase) != 0 {
+			notifyRequest.IsPassed = order.TestingCase == pkg.TestCaseCorrectPayment || order.TestingCase == pkg.TestCaseExistingUser
+			if _, err := n.repository.NotifyWebhookTestResults(context.TODO(), notifyRequest); err != nil {
+				zap.S().Errorw(errorCantNotifyBillingServer, "err", err)
+			}
+			if err := n.sendToMerchantTestingCentrifugo(order, order.TestingCase, resp); err != nil {
+				zap.S().Errorw(errorCantNotifyMerchantServer, "err", err)
+			}
+		}
 	} else {
 		order.PrivateStatus = constant.OrderStatusProjectReject
+		if len(order.TestingCase) != 0 {
+			notifyRequest.IsPassed = order.TestingCase == pkg.TestCaseIncorrectPayment || order.TestingCase == pkg.TestCaseNonExistingUser
+			if _, err := n.repository.NotifyWebhookTestResults(context.TODO(), notifyRequest); err != nil {
+				zap.S().Errorw(errorCantNotifyBillingServer, "err", err)
+			}
+			if err := n.sendToMerchantTestingCentrifugo(order, order.TestingCase, resp); err != nil {
+				zap.S().Errorw(errorCantNotifyMerchantServer, "err", err)
+			}
+		}
 	}
 
-	err = n.setStat(statKey, ps, true)
-	if err != nil {
-		n.HandleError(LoggerNotificationRedis, err, nil)
-	}
+	// We don't want update virtual orders
+	if len(order.TestingCase) == 0 {
+		err = n.setStat(statKey, ps, true)
+		if err != nil {
+			n.HandleError(LoggerNotificationRedis, err, nil)
+		}
 
-	order.SetNotificationStatus(ps, true)
-	if _, err := n.repository.UpdateOrder(context.TODO(), order); err != nil {
-		n.HandleError(loggerErrorNotificationUpdate, err, nil)
+		order.SetNotificationStatus(ps, true)
+		if _, err := n.repository.UpdateOrder(context.TODO(), order); err != nil {
+			n.HandleError(loggerErrorNotificationUpdate, err, nil)
+		}
 	}
 
 	return nil
 }
 
 func (n *Default) sendRequest(url string, req interface{}, action string) (*http.Response, error) {
-	reqUrl, err := n.validateUrl(url)
-
+	resp, err := n.sender.Send(url, req, action, n.order.GetProject().GetSecretKey())
 	if err != nil {
+		if err.Error() == errorHttpRequestFailed {
+			return nil, errors.New(fmt.Sprintf(errorNotificationNeedRetry, n.order.GetId(), action))
+		}
 		return nil, err
-	}
-
-	b, err := json.Marshal(req)
-
-	if err != nil {
-		return nil, err
-	}
-
-	headers := map[string]string{
-		HeaderContentType:   MIMEApplicationJSON,
-		HeaderAccept:        MIMEApplicationJSON,
-		HeaderAuthorization: "Signature " + n.getSignature(b),
-	}
-
-	resp, err := n.request(http.MethodPost, reqUrl.String(), b, headers)
-
-	if err != nil {
-		return nil, err
-	}
-
-	oId := n.order.GetId()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent &&
-		resp.StatusCode != http.StatusUnprocessableEntity {
-		return nil, errors.New(fmt.Sprintf(errorNotificationNeedRetry, oId, action))
 	}
 
 	return resp, nil
@@ -182,13 +207,6 @@ func (n *Default) getPaymentNotification() (*OrderNotificationMessage, error) {
 	res.Live = n.order.Project.Status == pkg.ProjectStatusInProduction
 
 	return res, nil
-}
-
-func (n *Default) getSignature(req []byte) string {
-	h := sha256.New()
-	h.Write([]byte(string(req) + n.order.GetProject().GetSecretKey()))
-
-	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (n *Default) getNotificationUrl(publicStatus string) string {
