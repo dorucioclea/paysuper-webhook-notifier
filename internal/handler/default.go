@@ -10,6 +10,7 @@ import (
 	"github.com/paysuper/paysuper-billing-server/pkg"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	"go.uber.org/zap"
 	"net/http"
 	"time"
 )
@@ -28,6 +29,8 @@ const (
 	centrifugoMsgNotificationForDeletedProject = "notification for deleted project"
 
 	psNotificationsKeyMask = "ps:notify:%s"
+
+	errorNotSuccessStatus = "status is not success"
 )
 
 var orderPublicStatusToEventNameMapping = map[string]string{
@@ -107,6 +110,10 @@ func (n *Default) Notify() error {
 			order.PrivateStatus = constant.OrderStatusProjectComplete
 		}
 	} else {
+		zap.S().Errorw(errorNotSuccessStatus, "status", resp.StatusCode, "retry_count", n.RetryCount, "order.uuid", n.order.Uuid)
+		if n.RetryCount < RetryMaxCount {
+			return n.handleErrorWithRetry(loggerErrorNotificationRetry, errors.New(errorNotSuccessStatus), nil)
+		}
 		order.PrivateStatus = constant.OrderStatusProjectReject
 	}
 
