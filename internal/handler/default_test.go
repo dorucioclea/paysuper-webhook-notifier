@@ -210,11 +210,17 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_Rejected() {
 
 	err := suite.defaultHandler.Notify()
 	assert.NoError(suite.T(), err)
-	assert.False(suite.T(), suite.handler.retryProcess)
+	assert.True(suite.T(), suite.handler.retryProcess)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(suite.T(), len(info), 1)
 	assert.Equal(suite.T(), info["POST "+processUrl], 1)
+	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(constant.OrderStatusPaymentSystemComplete))
+
+
+	suite.handler.RetryCount = RetryMaxCount
+	err = suite.defaultHandler.Notify()
+	assert.NoError(suite.T(), err)
 
 	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(constant.OrderStatusProjectReject))
 
