@@ -9,6 +9,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jarcoal/httpmock"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	billMocks "github.com/paysuper/paysuper-billing-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
@@ -57,7 +58,7 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 	_, err = suite.redis.Ping().Result()
 	assert.NoError(suite.T(), err)
 
-	bs := &mock.BillingService{}
+	bs := &billMocks.BillingService{}
 	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
 
 	suite.handler = &Handler{
@@ -217,7 +218,6 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_Rejected() {
 	assert.Equal(suite.T(), info["POST "+processUrl], 1)
 	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(constant.OrderStatusPaymentSystemComplete))
 
-
 	suite.handler.RetryCount = RetryMaxCount
 	err = suite.defaultHandler.Notify()
 	assert.NoError(suite.T(), err)
@@ -311,7 +311,7 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_getPaymentNotifi
 }
 
 func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_UpdateOrderError() {
-	bs := &mock.BillingService{}
+	bs := &billMocks.BillingService{}
 	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil, errors.New("some error"))
 
 	suite.handler.repository = bs
