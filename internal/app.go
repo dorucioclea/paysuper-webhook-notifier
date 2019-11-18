@@ -18,6 +18,7 @@ import (
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/handler"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/service"
+	pkg2 "github.com/paysuper/paysuper-webhook-notifier/pkg"
 	self "github.com/paysuper/paysuper-webhook-notifier/pkg/proto/grpc"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
@@ -29,7 +30,6 @@ import (
 )
 
 const (
-	serviceName   = "p1paynotifier"
 	loggerName    = "PAYSUPER_WEBHOOK_NOTIFIER"
 	mutexNameMask = "%s-%s"
 )
@@ -69,7 +69,7 @@ func (app *NotifierApplication) Init() {
 	var service micro.Service
 
 	options := []micro.Option{
-		micro.Name(serviceName),
+		micro.Name(pkg2.ServiceName),
 		micro.Version(constant.PayOneMicroserviceVersion),
 		micro.AfterStop(func() error {
 			app.log.Info("Micro service stopped")

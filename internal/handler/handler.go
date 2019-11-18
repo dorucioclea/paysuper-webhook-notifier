@@ -310,7 +310,7 @@ func (h *Handler) sendToMerchantTestingCentrifugo(order *proto.Order, testCase s
 		centrifugoFieldTestCase: testCase,
 	}
 
-	return h.sendToCentrifugo(msg, h.cfg.CentrifugoAdminChannel)
+	return h.sendToCentrifugo(msg, h.cfg.CentrifugoMerchantTestingChannel)
 }
 
 func (h *Handler) HandleError(msg string, err error, t Table) {
