@@ -8,18 +8,18 @@ require (
 	github.com/go-redis/redis v6.15.2+incompatible
 	github.com/gogo/protobuf v1.3.0
 	github.com/golang/protobuf v1.3.2
+	github.com/google/uuid v1.1.1
 	github.com/jarcoal/httpmock v1.0.4
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/micro/go-micro v1.8.0
 	github.com/micro/go-plugins v1.2.0
 	github.com/micro/protobuf v0.0.0-20180321161605-ebd3be6d4fdb
-	github.com/paysuper/paysuper-billing-server v0.0.0-20191113072424-4f89ccc5849f
+	github.com/paysuper/paysuper-billing-server v0.0.0-20191031115520-5d2419c5f2cf
 	github.com/paysuper/paysuper-recurring-repository v1.0.126
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.4.0
 	go.uber.org/zap v1.10.0
 	gopkg.in/ProtocolONE/rabbitmq.v1 v1.0.0-20190719062839-9858d727f3ef
-	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 )
 
 replace github.com/hashicorp/consul => github.com/hashicorp/consul v1.5.1
