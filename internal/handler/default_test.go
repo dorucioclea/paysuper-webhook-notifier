@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/globalsign/mgo/bson"
@@ -9,6 +8,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jarcoal/httpmock"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	billMock "github.com/paysuper/paysuper-billing-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
@@ -57,7 +57,7 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 	_, err = suite.redis.Ping().Result()
 	assert.NoError(suite.T(), err)
 
-	bs := &mock.BillingService{}
+	bs := &billMock.BillingService{}
 	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
 
 	suite.handler = &Handler{
@@ -305,7 +305,7 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_getPaymentNotifi
 }
 
 func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_UpdateOrderError() {
-	bs := &mock.BillingService{}
+	bs := &billMock.BillingService{}
 	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil, errors.New("some error"))
 
 	suite.handler.repository = bs
@@ -354,18 +354,6 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getNotificationUrl() {
 	assert.NotEmpty(suite.T(), en)
 	assert.Equal(suite.T(), en, suite.handler.order.Project.UrlProcessPayment)
 	assert.Equal(suite.T(), en, processUrl)
-}
-
-func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getSignature() {
-	defaultHandler := &Default{}
-	defaultHandler.Handler = suite.handler
-
-	req := &OrderNotificationMessage{}
-	b, err := json.Marshal(req)
-	assert.NoError(suite.T(), err)
-
-	s := defaultHandler.getSignature(b)
-	assert.Equal(suite.T(), s, dummySignature)
 }
 
 func (suite *DefaultHandlerTestSuite) TestDefaultHandler_sendRequest_signatureCheck_Ok() {
