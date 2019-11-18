@@ -7,6 +7,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/paysuper/paysuper-billing-server/pkg"
+	billMock "github.com/paysuper/paysuper-billing-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
@@ -138,7 +139,7 @@ func (suite *HandlerTestSuite) SetupTest() {
 		assert.FailNow(suite.T(), "Redis client init failed", "%v", err)
 	}
 
-	bs := &mock.BillingService{}
+	bs := &billMock.BillingService{}
 	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
 
 	suite.handler = NewHandler(

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/globalsign/mgo/bson"
 	"github.com/golang/protobuf/ptypes"
+	billMock "github.com/paysuper/paysuper-billing-server/pkg/mocks"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
 	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
@@ -31,7 +32,7 @@ func (suite *EmptyHandlerTestSuite) SetupTest() {
 	assert.NotNil(suite.T(), cfg)
 	assert.NotEmpty(suite.T(), cfg.BrokerAddress)
 
-	bs := &mock.BillingService{}
+	bs := &billMock.BillingService{}
 	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
 
 	suite.handler = &Handler{
@@ -132,7 +133,7 @@ func (suite *EmptyHandlerTestSuite) TestEmptyHandler_Notify_Ok() {
 }
 
 func (suite *EmptyHandlerTestSuite) TestEmptyHandler_Notify_UpdateOrderError() {
-	bs := &mock.BillingService{}
+	bs := &billMock.BillingService{}
 	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(nil, errors.New("some error"))
 
 	suite.handler.repository = bs
