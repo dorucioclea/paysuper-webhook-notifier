@@ -146,6 +146,7 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 		redis:      suite.redis,
 		cfg:        cfg,
 		dlv:        amqp.Delivery{RoutingKey: "*"},
+		sender:		mock.NewHttpSenderImpl(),
 	}
 
 	suite.handler.retBrok = mock.NewBrokerMockOk()
