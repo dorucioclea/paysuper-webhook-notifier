@@ -39,7 +39,7 @@ func (n *httpSenderImpl) Send(url string, req interface{}, action string, secret
 	headers := map[string]string{
 		HeaderContentType:   MIMEApplicationJSON,
 		HeaderAccept:        MIMEApplicationJSON,
-		HeaderAuthorization: n.getSignature(b, secretKey),
+		HeaderAuthorization: "Signature " + n.getSignature(b, secretKey),
 	}
 
 	resp, err := n.request(http.MethodPost, reqUrl.String(), b, headers)
