@@ -15,7 +15,7 @@ require (
 	github.com/micro/go-micro v1.8.0
 	github.com/micro/go-plugins v1.2.0
 	github.com/micro/protobuf v0.0.0-20180321161605-ebd3be6d4fdb
-	github.com/paysuper/paysuper-billing-server v0.0.0-20191119092821-15513bedeba8
+	github.com/paysuper/paysuper-billing-server v0.0.0-20191119122227-c570ba3e7572
 	github.com/paysuper/paysuper-recurring-repository v1.0.126
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.4.0
@@ -25,3 +25,5 @@ require (
 )
 
 replace github.com/hashicorp/consul => github.com/hashicorp/consul v1.5.1
+
+go 1.13
