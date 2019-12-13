@@ -7,7 +7,6 @@ import (
 	"github.com/InVisionApp/go-health"
 	"github.com/InVisionApp/go-health/handlers"
 	"github.com/bsm/redis-lock"
-	"github.com/centrifugal/gocent"
 	"github.com/go-redis/redis"
 	"github.com/micro/go-micro"
 	"github.com/micro/go-plugins/client/selector/static"
@@ -34,9 +33,11 @@ const (
 )
 
 type NotifierApplication struct {
-	cfg    *config.Config
-	repo   grpc.BillingService
-	centCl *gocent.Client
+	cfg  *config.Config
+	repo grpc.BillingService
+
+	centrifugoPaymentForm handler.CentrifugoInterface
+	centrifugoDashboard   handler.CentrifugoInterface
 
 	httpServer *http.Server
 	router     *http.ServeMux
@@ -97,13 +98,7 @@ func (app *NotifierApplication) Init() {
 	service.Init()
 
 	app.repo = grpc.NewBillingService(pkg.ServiceName, service.Client())
-	app.centCl = gocent.New(
-		gocent.Config{
-			Addr:       app.cfg.CentrifugoUrl,
-			Key:        app.cfg.CentrifugoKey,
-			HTTPClient: NewCentrifugoHttpClient(),
-		},
-	)
+	app.centrifugoPaymentForm, app.centrifugoDashboard = handler.NewCentrifugo(app.cfg, NewCentrifugoHttpClient())
 
 	app.router = http.NewServeMux()
 	app.initHealth()
@@ -288,13 +283,14 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 	h := handler.NewHandler(
 		o,
 		app.repo,
-		app.centCl,
 		app.retryBroker,
 		app.taxjarTransactionsBroker,
 		app.taxjarRefundsBroker,
 		app.redis,
 		d,
 		app.cfg,
+		app.centrifugoPaymentForm,
+		app.centrifugoDashboard,
 	)
 
 	n, err := h.GetNotifier()

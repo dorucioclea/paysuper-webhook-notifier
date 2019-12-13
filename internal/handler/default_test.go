@@ -149,6 +149,8 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 		dlv:        amqp.Delivery{RoutingKey: "*"},
 	}
 
+	suite.handler.centrifugoPaymentForm, suite.handler.centrifugoDashboard = NewCentrifugo(cfg, mock.NewCentrifugoTransportStatusOk())
+
 	suite.handler.retBrok = mock.NewBrokerMockOk()
 	suite.handler.RetryCount = RetryMaxCount - 1
 

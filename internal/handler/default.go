@@ -198,7 +198,7 @@ func (n *Default) getSignature(req []byte) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func (n *Default) getNotificationUrl(publicStatus string) string {
+func (n *Default) getNotificationUrl(_ string) string {
 	//INFO According #192488 we need to use just one webhook URL for all kind of notifications.
 	return n.order.Project.UrlProcessPayment
 }
