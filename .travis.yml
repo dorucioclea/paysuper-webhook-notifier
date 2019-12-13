@@ -21,6 +21,11 @@ jobs:
     services:
     - rabbitmq
     - redis-server
+    env:
+      - CENTRIFUGO_API_SECRET_PAYMENT_FORM=api_secret;
+      - CENTRIFUGO_API_SECRET_DASHBOARD=api_secret;
+      - CENTRIFUGO_URL_PAYMENT_FORM="http://localhost/payment_form";
+      - CENTRIFUGO_URL_DASHBOARD="http://localhost/dashboard";
     install: true
     script:
     - go test ./... -coverprofile=coverage.out -covermode=atomic -p=1
