@@ -125,7 +125,8 @@ func (suite *HandlerTestSuite) SetupTest() {
 	}
 
 	suite.httpClient = mock.NewCentrifugoTransportStatusOk()
-	centrifugoPaymentForm, centrifugoDashboard := NewCentrifugo(cfg, suite.httpClient)
+	centrifugoPaymentForm := NewCentrifugo(cfg.CentrifugoPaymentForm, suite.httpClient)
+	centrifugoDashboard := NewCentrifugo(cfg.CentrifugoDashboard, suite.httpClient)
 
 	redisCl := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisHost,

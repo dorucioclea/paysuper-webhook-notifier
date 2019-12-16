@@ -98,7 +98,8 @@ func (app *NotifierApplication) Init() {
 	service.Init()
 
 	app.repo = grpc.NewBillingService(pkg.ServiceName, service.Client())
-	app.centrifugoPaymentForm, app.centrifugoDashboard = handler.NewCentrifugo(app.cfg, NewCentrifugoHttpClient())
+	app.centrifugoPaymentForm = handler.NewCentrifugo(app.cfg.CentrifugoPaymentForm, NewCentrifugoHttpClient())
+	app.centrifugoDashboard = handler.NewCentrifugo(app.cfg.CentrifugoDashboard, NewCentrifugoHttpClient())
 
 	app.router = http.NewServeMux()
 	app.initHealth()

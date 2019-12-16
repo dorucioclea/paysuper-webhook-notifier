@@ -4,44 +4,33 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/centrifugal/gocent"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"go.uber.org/zap"
 	"net/http"
 )
 
 type CentrifugoInterface interface {
-	Publish(ctx context.Context, channel string, msg interface{}) error
+	Publish(context.Context, string, interface{}) error
+	GetChannelToken(secret, subject string, expire int64) string
 }
 
 type Centrifugo struct {
-	client *gocent.Client
+	centrifugoClient *gocent.Client
 }
 
-func NewCentrifugo(
-	cfg *config.Config,
-	httpClient *http.Client,
-) (centrifugoPaymentForm CentrifugoInterface, centrifugoDashboard CentrifugoInterface) {
-	centrifugoPaymentForm = &Centrifugo{
-		client: gocent.New(
+func NewCentrifugo(cfg *config.Centrifugo, httpClient *http.Client) CentrifugoInterface {
+	centrifugo := &Centrifugo{
+		centrifugoClient: gocent.New(
 			gocent.Config{
-				Addr:       cfg.CentrifugoURLPaymentForm,
-				Key:        cfg.CentrifugoApiSecretPaymentForm,
+				Addr:       cfg.URL,
+				Key:        cfg.ApiSecret,
 				HTTPClient: httpClient,
 			},
 		),
 	}
 
-	centrifugoDashboard = &Centrifugo{
-		client: gocent.New(
-			gocent.Config{
-				Addr:       cfg.CentrifugoURLDashboard,
-				Key:        cfg.CentrifugoApiSecretDashboard,
-				HTTPClient: httpClient,
-			},
-		),
-	}
-
-	return centrifugoPaymentForm, centrifugoDashboard
+	return centrifugo
 }
 
 func (c *Centrifugo) Publish(ctx context.Context, channel string, msg interface{}) error {
@@ -57,5 +46,23 @@ func (c *Centrifugo) Publish(ctx context.Context, channel string, msg interface{
 		return err
 	}
 
-	return c.client.Publish(ctx, channel, b)
+	return c.centrifugoClient.Publish(ctx, channel, b)
+}
+
+func (c *Centrifugo) GetChannelToken(secret, subject string, expire int64) string {
+	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": subject, "exp": expire})
+	token, err := claims.SignedString([]byte(secret))
+
+	if err != nil {
+		zap.L().Error(
+			"Generate centrifugo channel token failed",
+			zap.Error(err),
+			zap.String("subject", subject),
+			zap.Any("expire", expire),
+		)
+
+		return ""
+	}
+
+	return token
 }
