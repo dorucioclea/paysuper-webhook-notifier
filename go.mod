@@ -14,11 +14,11 @@ require (
 	github.com/micro/go-micro v1.8.0
 	github.com/micro/go-plugins v1.2.0
 	github.com/micro/protobuf v0.0.0-20180321161605-ebd3be6d4fdb
-	github.com/paysuper/paysuper-billing-server v0.0.0-20191115144323-b4e5dc0dbb21
-	github.com/paysuper/paysuper-recurring-repository v1.0.126
+	github.com/paysuper/paysuper-billing-server v0.0.0-20191213192729-8c70e7ed5ab7
+	github.com/paysuper/paysuper-recurring-repository v1.0.128
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.4.0
-	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect
+	github.com/ttacon/builder v0.0.0-20170518171403-c099f663e1c2 // indirect
 	go.uber.org/zap v1.10.0
 	gopkg.in/ProtocolONE/rabbitmq.v1 v1.0.0-20191111132103-cd39b4cf18a0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
