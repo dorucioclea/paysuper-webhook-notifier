@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/centrifugal/gocent"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"go.uber.org/zap"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 
 type CentrifugoInterface interface {
 	Publish(context.Context, string, interface{}) error
-	GetChannelToken(secret, subject string, expire int64) string
 }
 
 type Centrifugo struct {
@@ -47,22 +45,4 @@ func (c *Centrifugo) Publish(ctx context.Context, channel string, msg interface{
 	}
 
 	return c.centrifugoClient.Publish(ctx, channel, b)
-}
-
-func (c *Centrifugo) GetChannelToken(secret, subject string, expire int64) string {
-	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": subject, "exp": expire})
-	token, err := claims.SignedString([]byte(secret))
-
-	if err != nil {
-		zap.L().Error(
-			"Generate centrifugo channel token failed",
-			zap.Error(err),
-			zap.String("subject", subject),
-			zap.Any("expire", expire),
-		)
-
-		return ""
-	}
-
-	return token
 }
