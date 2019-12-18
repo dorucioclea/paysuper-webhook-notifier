@@ -76,6 +76,8 @@ github.com/ProtocolONE/rabbitmq v0.0.0-20190129162844-9f24367e139c h1:jiH5dizqc7
 github.com/ProtocolONE/rabbitmq v0.0.0-20190129162844-9f24367e139c/go.mod h1:ZnV4uG7YnB4iU8c8co8XU4w7xL0sGaGEw5d9g1THmwk=
 github.com/PuerkitoBio/purell v1.0.0 h1:0GoNN3taZV6QI81IXgCbxMyEaJDXMSIjArYBCYzVVvs=
 github.com/PuerkitoBio/purell v1.0.0/go.mod h1:c11w/QuzBsJSee3cPx9rAFu61PvFxuPbtSwDGJws/X0=
+github.com/PuerkitoBio/purell v1.1.1 h1:WEQqlqaGbrPkxLJWfBwQmfEAE1Z7ONdDLqrN38tNFfI=
+github.com/PuerkitoBio/purell v1.1.1/go.mod h1:c11w/QuzBsJSee3cPx9rAFu61PvFxuPbtSwDGJws/X0=
 github.com/PuerkitoBio/urlesc v0.0.0-20160726150825-5bd2802263f2 h1:JCHLVE3B+kJde7bIEo5N4J+ZbLhp0J1Fs+ulyRws4gE=
 github.com/PuerkitoBio/urlesc v0.0.0-20160726150825-5bd2802263f2/go.mod h1:uGdkoq3SwY9Y+13GIhn11/XLaGBb4BfwItxLd5jeuXE=
 github.com/RoaringBitmap/roaring v0.4.7/go.mod h1:8khRDP4HmeXns4xIj9oGrKSz7XTQiJx2zgh7AcNke4w=
@@ -791,8 +793,12 @@ github.com/paysuper/paysuper-billing-server v0.0.0-20191106112357-e5d36ace8c36/g
 github.com/paysuper/paysuper-billing-server v0.0.0-20191111090538-4a75afd2a960/go.mod h1:CYx7c60OPthc8ZlTqiknrhgQwX1QzAkGEghubJP1z1E=
 github.com/paysuper/paysuper-billing-server v0.0.0-20191115144323-b4e5dc0dbb21 h1:WY/2DKMHRBMD0X64JPM8X6rKzmI++FDQYHpsHIHsf80=
 github.com/paysuper/paysuper-billing-server v0.0.0-20191115144323-b4e5dc0dbb21/go.mod h1:DlSbiED5VwRXe72v/abBJ7VlazD8yM45r+NcutFMAPU=
+github.com/paysuper/paysuper-billing-server v0.0.0-20191119122227-c570ba3e7572/go.mod h1:0J5pY5q5F4qK/X0mnF0P3+DpU5Dd1tiwvDfj8Sv4bYY=
+github.com/paysuper/paysuper-billing-server v0.0.0-20191213095551-a206f0eb91a1/go.mod h1:lcwmgbDPJJc0TN6QC75VfrgXH9a3uUnYHLkXzkRoaBc=
 github.com/paysuper/paysuper-billing-server v0.0.0-20191213192729-8c70e7ed5ab7 h1:HAYRH/YqfclrZM9TjGfKWR2GXOdMSo73WogKJ8ptOyg=
 github.com/paysuper/paysuper-billing-server v0.0.0-20191213192729-8c70e7ed5ab7/go.mod h1:s7Vqcy6+Ms2MwyCnAz/Y36uxSRpg2a/XtISZ3wULzCQ=
+github.com/paysuper/paysuper-billing-server v0.0.0-20191217094156-47846569cbe9 h1:jmWKgo5P24WWzt0i05QIqhsWdUS1gN/I1XwNUMjpXbs=
+github.com/paysuper/paysuper-billing-server v0.0.0-20191217094156-47846569cbe9/go.mod h1:lcwmgbDPJJc0TN6QC75VfrgXH9a3uUnYHLkXzkRoaBc=
 github.com/paysuper/paysuper-currencies v0.0.0-20190903083641-668b8b2b997d h1:hoMkfdq4qEGOONvxajsZO0Mf6np++pGnrKVxegvplaw=
 github.com/paysuper/paysuper-currencies v0.0.0-20190903083641-668b8b2b997d/go.mod h1:C+QHdgbjIlAPxHD93/08yi+xWfUgk8maLY8FKFqNzMQ=
 github.com/paysuper/paysuper-currencies v0.0.0-20191209131235-52121b09aab0 h1:7DrckuM24ql1WUdKk6Cmt/YES8BJ5nq7JvptcKShPsg=
@@ -824,6 +830,7 @@ github.com/paysuper/paysuper-tax-service v0.0.0-20190903084038-7849f394f122 h1:4
 github.com/paysuper/paysuper-tax-service v0.0.0-20190903084038-7849f394f122/go.mod h1:QK6czJ8ge3pF/QbFlRXuYfPRrm/90qubdWQ9OWKfeUs=
 github.com/paysuper/paysuper-tax-service v1.0.0 h1:7/vc0jIbFv7adbNoOuk7uQOxWeynNABsCjlmtbOEOsM=
 github.com/paysuper/paysuper-tax-service v1.0.0/go.mod h1:SQUpK6lw0iJEM2o11fVoM6PvgEvgIUSGR/20VnOBso4=
+github.com/paysuper/paysuper-webhook-notifier v0.1.0/go.mod h1:llyhue1UTPsAuNIQ2x9yCPuBQ+f6Q6ljX081ffmCuO0=
 github.com/paysuper/postmark-sender v0.0.0-20190903075212-a210e35789fc h1:LPZzsbFRq04SkYik74jOvu9pVpHWsjoELbxXkSx18D0=
 github.com/paysuper/postmark-sender v0.0.0-20190903075212-a210e35789fc/go.mod h1:uUqo1eEOgjNFl9JaCrkbZNl5MYFMi6i0arXcptMEDUo=
 github.com/paysuper/postmark-sender v0.0.0-20190926173213-1b6244122c49 h1:nUPxqp4LmKgcQzwAUkpzSIMe48cloz53f/zBqoaXV/s=
