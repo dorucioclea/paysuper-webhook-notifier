@@ -116,7 +116,7 @@ func (n *Default) Notify() error {
 	}
 
 	secretKey := n.order.GetProject().GetSecretKey()
-	if order.TestingCase == "incorrect_signature" {
+	if order.TestingCase == pkg.TestCaseIncorrectPayment {
 		secretKey = "testing_secret_key_wrong"
 	}
 	resp, sendErr := n.sendRequest(url, req, NotificationActionPayment, secretKey)
