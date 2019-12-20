@@ -101,6 +101,7 @@ func (n *Default) Notify() error {
 
 	req, err := n.getPaymentNotification()
 	if err != nil {
+		zap.L().Error("getPaymentNotification failed", zap.Error(err))
 		if len(order.TestingCase) == 0 {
 			n.HandleError(loggerErrorNotificationMalformed, err, nil)
 		}
@@ -130,8 +131,9 @@ func (n *Default) Notify() error {
 	if order.TestingCase == pkg.TestCaseIncorrectPayment {
 		secretKey = "testing_secret_key_wrong"
 	}
+	zap.L().Info("Sending request", zap.String("url", url), zap.Any("req", req))
 	resp, sendErr := n.sendRequest(url, req, NotificationActionPayment, secretKey)
-
+	zap.L().Info("Response after request", zap.Error(sendErr), zap.Any("resp", resp))
 	if sendErr != nil {
 		if len(order.TestingCase) > 0 {
 			notifyRequest.IsPassed = false

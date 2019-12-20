@@ -297,7 +297,10 @@ func (h *Handler) sendToMerchantTestingCentrifugo(order *proto.Order, testCase s
 		centrifugoFieldTestCase: testCase,
 	}
 
-	return h.centrifugoDashboard.Publish(context.Background(), fmt.Sprintf(h.cfg.CentrifugoMerchantTestingChannel, order.GetMerchantId()), msg)
+
+	channel := fmt.Sprintf(h.cfg.CentrifugoMerchantTestingChannel, order.GetMerchantId())
+	zap.L().Info("Sending to testing result to centrifugoDashboard", zap.String("channel", channel), zap.String("centrifugo", h.cfg.CentrifugoDashboard.URL))
+	return h.centrifugoDashboard.Publish(context.Background(), channel, msg)
 }
 
 func (h *Handler) HandleError(msg string, err error, t Table) {
