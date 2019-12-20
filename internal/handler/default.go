@@ -96,6 +96,8 @@ func (n *Default) Notify() error {
 		return errors.New(loggerErrorNotificationMalformed)
 	}
 
+	zap.S().Infow("Default Notify Called", "merchant", order.GetMerchantId(), "testing_case", order.TestingCase, "id", order.Uuid, "url", n.getNotificationUrl(ps))
+
 	notifyRequest := &grpc.NotifyWebhookTestResultsRequest{TestCase: order.TestingCase, ProjectId: order.GetProjectId(), Type: order.ProductType}
 	url := n.getNotificationUrl(ps)
 	if url == "" {
