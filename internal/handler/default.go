@@ -64,6 +64,17 @@ func newDefaultHandler(h *Handler) Notifier {
 func (n *Default) Notify() error {
 	order := n.order
 
+	//TODO: delete
+	zap.L().Info(
+		"Default Called",
+		zap.String("merchant", order.GetMerchantId()),
+		zap.String("testing_case", order.TestingCase),
+		zap.String("uuid", order.Uuid),
+		zap.String("status", order.GetPublicStatus()),
+		zap.String("url", n.getNotificationUrl(order.GetPublicStatus())),
+		zap.Int32("project_status", order.Project.Status),
+	)
+
 	if order.Project.Status == pkg.ProjectStatusDeleted {
 		if err := n.sendToAdminCentrifugo(n.order, centrifugoMsgNotificationForDeletedProject); err != nil {
 			n.HandleError(LoggerNotificationCentrifugo, err, nil)
@@ -95,8 +106,6 @@ func (n *Default) Notify() error {
 		}
 		return errors.New(loggerErrorNotificationMalformed)
 	}
-
-	zap.S().Infow("Default Notify Called", "merchant", order.GetMerchantId(), "testing_case", order.TestingCase, "id", order.Uuid, "url", n.getNotificationUrl(ps))
 
 	notifyRequest := &grpc.NotifyWebhookTestResultsRequest{TestCase: order.TestingCase, ProjectId: order.GetProjectId(), Type: order.ProductType}
 	url := n.getNotificationUrl(ps)
