@@ -143,6 +143,7 @@ func (n *Default) Notify() error {
 			if err := n.sendToMerchantTestingCentrifugo(order, order.TestingCase, nil); err != nil {
 				zap.S().Errorw(errorCantNotifyMerchantServer, "err", err)
 			}
+			return sendErr
 		} else {
 			return n.handleErrorWithRetry(loggerErrorNotificationRetry, sendErr, nil)
 		}
