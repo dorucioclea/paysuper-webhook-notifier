@@ -27,12 +27,14 @@ func (n *httpSenderImpl) Send(url string, req interface{}, action string, secret
 	reqUrl, err := n.validateUrl(url)
 
 	if err != nil {
+		zap.L().Error("validate url failed", zap.Error(err), zap.String("url", url))
 		return nil, err
 	}
 
 	b, err := json.Marshal(req)
 
 	if err != nil {
+		zap.L().Error("marshal json error", zap.Error(err))
 		return nil, err
 	}
 
@@ -46,12 +48,7 @@ func (n *httpSenderImpl) Send(url string, req interface{}, action string, secret
 
 	if err != nil {
 		zap.L().Error("request error", zap.Error(err), zap.String("url", reqUrl.String()), zap.Any("headers", headers), zap.String("body", string(b)))
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent &&
-		resp.StatusCode != http.StatusUnprocessableEntity {
-		return nil, errors.New(errorHttpRequestFailed)
+		return resp, err
 	}
 
 	return resp, nil

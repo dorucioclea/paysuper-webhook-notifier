@@ -200,9 +200,9 @@ func (n *Default) sendRequest(url string, req interface{}, action string, secret
 	if err != nil {
 		zap.L().Error("send request failed", zap.Error(err))
 		if err.Error() == errorHttpRequestFailed {
-			return nil, errors.New(fmt.Sprintf(errorNotificationNeedRetry, n.order.GetId(), action))
+			return resp, errors.New(fmt.Sprintf(errorNotificationNeedRetry, n.order.GetId(), action))
 		}
-		return nil, err
+		return resp, err
 	}
 
 	return resp, nil
