@@ -1,8 +1,8 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/centrifugal/gocent"
 	"github.com/globalsign/mgo/bson"
 	"github.com/go-redis/redis"
 	"github.com/golang/protobuf/ptypes"
@@ -17,6 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	mock2 "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
 	"net/http"
 	"testing"
@@ -26,6 +29,9 @@ type HandlerTestSuite struct {
 	suite.Suite
 	handler    *Handler
 	httpClient *http.Client
+
+	logObserver *zap.Logger
+	zapRecorder *observer.ObservedLogs
 }
 
 func Test_Handler(t *testing.T) {
@@ -119,14 +125,8 @@ func (suite *HandlerTestSuite) SetupTest() {
 	}
 
 	suite.httpClient = mock.NewCentrifugoTransportStatusOk()
-
-	centCl := gocent.New(
-		gocent.Config{
-			Addr:       cfg.CentrifugoUrl,
-			Key:        cfg.CentrifugoKey,
-			HTTPClient: suite.httpClient,
-		},
-	)
+	centrifugoPaymentForm := NewCentrifugo(cfg.CentrifugoPaymentForm, suite.httpClient)
+	centrifugoDashboard := NewCentrifugo(cfg.CentrifugoDashboard, suite.httpClient)
 
 	redisCl := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisHost,
@@ -145,19 +145,21 @@ func (suite *HandlerTestSuite) SetupTest() {
 	suite.handler = NewHandler(
 		order,
 		bs,
-		centCl,
 		mock.NewBrokerMockOk(),
 		mock.NewBrokerMockOk(),
 		mock.NewBrokerMockOk(),
 		redisCl,
 		amqp.Delivery{Headers: amqp.Table{retryCountHeader: int32(1)}},
 		cfg,
+		centrifugoPaymentForm,
+		centrifugoDashboard,
 	)
 
 	assert.IsType(suite.T(), &Handler{}, suite.handler)
 	assert.IsType(suite.T(), &billing.Order{}, suite.handler.order)
 	assert.Implements(suite.T(), (*grpc.BillingService)(nil), suite.handler.repository)
-	assert.IsType(suite.T(), &gocent.Client{}, suite.handler.centrifugoClient)
+	assert.Implements(suite.T(), (*CentrifugoInterface)(nil), suite.handler.centrifugoPaymentForm)
+	assert.Implements(suite.T(), (*CentrifugoInterface)(nil), suite.handler.centrifugoDashboard)
 	assert.Implements(suite.T(), (*rabbitmq.BrokerInterface)(nil), suite.handler.retBrok)
 	assert.Implements(suite.T(), (*rabbitmq.BrokerInterface)(nil), suite.handler.taxjarTransactionsBroker)
 	assert.Implements(suite.T(), (*rabbitmq.BrokerInterface)(nil), suite.handler.taxjarRefundsBroker)
@@ -165,29 +167,41 @@ func (suite *HandlerTestSuite) SetupTest() {
 	assert.IsType(suite.T(), &redis.Client{}, suite.handler.redis)
 	assert.IsType(suite.T(), &config.Config{}, suite.handler.cfg)
 	assert.Equal(suite.T(), int32(1), suite.handler.RetryCount)
+
+	var core zapcore.Core
+
+	lvl := zap.NewAtomicLevel()
+	core, suite.zapRecorder = observer.New(lvl)
+	suite.logObserver = zap.New(core)
 }
 
 func (suite *HandlerTestSuite) TearDownTest() {}
 
 func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_SuccessOrder() {
+	zap.ReplaceGlobals(suite.logObserver)
+
 	err := suite.handler.SendToUserCentrifugo(suite.handler.order)
 	assert.NoError(suite.T(), err)
 
-	typedHttpClient, ok := suite.httpClient.Transport.(*mock.CentrifugoTransportStatusOk)
+	messages := suite.zapRecorder.All()
+	assert.NotEmpty(suite.T(), messages)
+	assert.Regexp(suite.T(), "payment_form", messages[0].Message)
+
+	msg := make(map[string]interface{})
+	err = json.Unmarshal(messages[0].Context[1].Interface.([]byte), &msg)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), msg)
+
+	assert.Contains(suite.T(), msg, "method")
+	assert.Equal(suite.T(), msg["method"], "publish")
+
+	assert.Contains(suite.T(), msg, "params")
+	assert.NotEmpty(suite.T(), msg["params"])
+	assert.Contains(suite.T(), msg["params"], "channel")
+	assert.Contains(suite.T(), msg["params"], "data")
+
+	params, ok := msg["params"].(map[string]interface{})
 	assert.True(suite.T(), ok)
-
-	assert.NotEmpty(suite.T(), typedHttpClient.Msg)
-	assert.Contains(suite.T(), typedHttpClient.Msg, "method")
-	assert.Equal(suite.T(), typedHttpClient.Msg["method"], "publish")
-
-	assert.Contains(suite.T(), typedHttpClient.Msg, "params")
-	assert.NotEmpty(suite.T(), typedHttpClient.Msg["params"])
-	assert.Contains(suite.T(), typedHttpClient.Msg["params"], "channel")
-	assert.Contains(suite.T(), typedHttpClient.Msg["params"], "data")
-
-	params, ok := typedHttpClient.Msg["params"].(map[string]interface{})
-	assert.True(suite.T(), ok)
-
 	assert.Equal(suite.T(), fmt.Sprintf(suite.handler.cfg.CentrifugoUserChannel, suite.handler.order.Uuid), params["channel"])
 
 	data, ok := params["data"].(map[string]interface{})
@@ -203,6 +217,8 @@ func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_SuccessOrder() {
 }
 
 func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_DeclineOrder() {
+	zap.ReplaceGlobals(suite.logObserver)
+
 	order := &billing.Order{
 		Id:            bson.NewObjectId().Hex(),
 		Uuid:          bson.NewObjectId().Hex(),
@@ -287,19 +303,24 @@ func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_DeclineOrder() {
 	err := suite.handler.SendToUserCentrifugo(order)
 	assert.NoError(suite.T(), err)
 
-	typedHttpClient, ok := suite.httpClient.Transport.(*mock.CentrifugoTransportStatusOk)
-	assert.True(suite.T(), ok)
+	messages := suite.zapRecorder.All()
+	assert.NotEmpty(suite.T(), messages)
+	assert.Regexp(suite.T(), "payment_form", messages[0].Message)
 
-	assert.NotEmpty(suite.T(), typedHttpClient.Msg)
-	assert.Contains(suite.T(), typedHttpClient.Msg, "method")
-	assert.Equal(suite.T(), typedHttpClient.Msg["method"], "publish")
+	msg := make(map[string]interface{})
+	err = json.Unmarshal(messages[0].Context[1].Interface.([]byte), &msg)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), msg)
 
-	assert.Contains(suite.T(), typedHttpClient.Msg, "params")
-	assert.NotEmpty(suite.T(), typedHttpClient.Msg["params"])
-	assert.Contains(suite.T(), typedHttpClient.Msg["params"], "channel")
-	assert.Contains(suite.T(), typedHttpClient.Msg["params"], "data")
+	assert.Contains(suite.T(), msg, "method")
+	assert.Equal(suite.T(), msg["method"], "publish")
 
-	params, ok := typedHttpClient.Msg["params"].(map[string]interface{})
+	assert.Contains(suite.T(), msg, "params")
+	assert.NotEmpty(suite.T(), msg["params"])
+	assert.Contains(suite.T(), msg["params"], "channel")
+	assert.Contains(suite.T(), msg["params"], "data")
+
+	params, ok := msg["params"].(map[string]interface{})
 	assert.True(suite.T(), ok)
 
 	assert.Equal(suite.T(), fmt.Sprintf(suite.handler.cfg.CentrifugoUserChannel, order.Uuid), params["channel"])
@@ -324,22 +345,29 @@ func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_DeclineOrder() {
 }
 
 func (suite *HandlerTestSuite) TestHandler_sendToAdminCentrifugo_Ok() {
+	zap.ReplaceGlobals(suite.logObserver)
+
 	err := suite.handler.sendToAdminCentrifugo(suite.handler.order, "some error")
 	assert.NoError(suite.T(), err)
 
-	typedHttpClient, ok := suite.httpClient.Transport.(*mock.CentrifugoTransportStatusOk)
-	assert.True(suite.T(), ok)
+	messages := suite.zapRecorder.All()
+	assert.NotEmpty(suite.T(), messages)
+	assert.Regexp(suite.T(), "dashboard", messages[0].Message)
 
-	assert.NotEmpty(suite.T(), typedHttpClient.Msg)
-	assert.Contains(suite.T(), typedHttpClient.Msg, "method")
-	assert.Equal(suite.T(), typedHttpClient.Msg["method"], "publish")
+	msg := make(map[string]interface{})
+	err = json.Unmarshal(messages[0].Context[1].Interface.([]byte), &msg)
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), msg)
 
-	assert.Contains(suite.T(), typedHttpClient.Msg, "params")
-	assert.NotEmpty(suite.T(), typedHttpClient.Msg["params"])
-	assert.Contains(suite.T(), typedHttpClient.Msg["params"], "channel")
-	assert.Contains(suite.T(), typedHttpClient.Msg["params"], "data")
+	assert.Contains(suite.T(), msg, "method")
+	assert.Equal(suite.T(), msg["method"], "publish")
 
-	params, ok := typedHttpClient.Msg["params"].(map[string]interface{})
+	assert.Contains(suite.T(), msg, "params")
+	assert.NotEmpty(suite.T(), msg["params"])
+	assert.Contains(suite.T(), msg["params"], "channel")
+	assert.Contains(suite.T(), msg["params"], "data")
+
+	params, ok := msg["params"].(map[string]interface{})
 	assert.True(suite.T(), ok)
 
 	assert.Equal(suite.T(), suite.handler.cfg.CentrifugoAdminChannel, params["channel"])

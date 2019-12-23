@@ -1,15 +1,21 @@
 package mock
 
 import (
-	"encoding/json"
+	"bytes"
+	"context"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 )
+
+type mockContextKey struct {
+	name string
+}
 
 type CentrifugoTransportStatusOk struct {
 	Transport http.RoundTripper
-	Msg       map[string]interface{}
 }
 
 func NewCentrifugoTransportStatusOk() *http.Client {
@@ -19,12 +25,22 @@ func NewCentrifugoTransportStatusOk() *http.Client {
 }
 
 func (h *CentrifugoTransportStatusOk) RoundTrip(req *http.Request) (*http.Response, error) {
-	body, _ := ioutil.ReadAll(req.Body)
-	err := json.Unmarshal(body, &h.Msg)
+	ctx := context.WithValue(req.Context(), &mockContextKey{name: "mockRequestStart"}, time.Now())
+	req = req.WithContext(ctx)
 
-	if err != nil {
-		return nil, err
+	var reqBody []byte
+
+	if req.Body != nil {
+		reqBody, _ = ioutil.ReadAll(req.Body)
 	}
+
+	req.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody))
+
+	zap.L().Info(
+		req.URL.Path,
+		zap.Any("request_headers", req.Header),
+		zap.ByteString("request_body", reqBody),
+	)
 
 	return &http.Response{
 		StatusCode: http.StatusOK,

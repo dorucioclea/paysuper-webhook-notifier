@@ -3,10 +3,8 @@ package handler
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/centrifugal/gocent"
 	"github.com/go-redis/redis"
 	"github.com/micro/protobuf/ptypes"
 	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
@@ -38,7 +36,6 @@ const (
 	errorPaymentMethodUnknownStatus            = "unknown transaction status"
 	errorEmptyUrl                              = "empty string in url"
 	errorNotificationNeedRetry                 = "bad project handler response notification request mark for new send (ID: %s, Action: %s)\n"
-	errorCentrifugoNotInit                     = "centrifugo client is not configured"
 
 	loggerErrorNotificationRetry       = "Project notification failed"
 	loggerErrorNotificationUpdate      = "Repository service return error. Update order failed"
@@ -104,7 +101,6 @@ func (ns *NotificationStat) Get(key string) bool {
 type Handler struct {
 	order                    *proto.Order
 	repository               grpc.BillingService
-	centrifugoClient         *gocent.Client
 	retBrok                  rabbitmq.BrokerInterface
 	taxjarTransactionsBroker rabbitmq.BrokerInterface
 	taxjarRefundsBroker      rabbitmq.BrokerInterface
@@ -113,18 +109,21 @@ type Handler struct {
 	retryProcess             bool
 	redis                    *redis.Client
 	cfg                      *config.Config
+	centrifugoPaymentForm    CentrifugoInterface
+	centrifugoDashboard      CentrifugoInterface
 }
 
 func NewHandler(
 	o *proto.Order,
 	rep grpc.BillingService,
-	cClient *gocent.Client,
 	retBrok rabbitmq.BrokerInterface,
 	taxjarTransactionsBroker rabbitmq.BrokerInterface,
 	taxjarRefundsBroker rabbitmq.BrokerInterface,
 	redis *redis.Client,
 	dlv amqp.Delivery,
 	cfg *config.Config,
+	centrifugoPaymentForm CentrifugoInterface,
+	centrifugoDashboard CentrifugoInterface,
 ) *Handler {
 	rtc := int32(0)
 
@@ -135,7 +134,6 @@ func NewHandler(
 	return &Handler{
 		order:                    o,
 		repository:               rep,
-		centrifugoClient:         cClient,
 		retBrok:                  retBrok,
 		taxjarTransactionsBroker: taxjarTransactionsBroker,
 		taxjarRefundsBroker:      taxjarRefundsBroker,
@@ -143,6 +141,8 @@ func NewHandler(
 		dlv:                      dlv,
 		RetryCount:               rtc,
 		cfg:                      cfg,
+		centrifugoPaymentForm:    centrifugoPaymentForm,
+		centrifugoDashboard:      centrifugoDashboard,
 	}
 }
 
@@ -243,7 +243,7 @@ func (h *Handler) validateUrl(cUrl string) (*url.URL, error) {
 
 func (h *Handler) request(method, url string, req []byte, headers map[string]string) (*http.Response, error) {
 	client := tools.NewLoggedHttpClient(zap.S())
-	httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(req))
+	httpReq, err := http.NewRequest(method, url, bytes.NewBuffer(req))
 
 	if err != nil {
 		return nil, err
@@ -254,20 +254,6 @@ func (h *Handler) request(method, url string, req []byte, headers map[string]str
 	}
 
 	return client.Do(httpReq)
-}
-
-func (h *Handler) sendToCentrifugo(msg map[string]interface{}, ch string) error {
-	b, err := json.Marshal(msg)
-
-	if err != nil {
-		return err
-	}
-
-	if h.centrifugoClient == nil {
-		return errors.New(errorCentrifugoNotInit)
-	}
-
-	return h.centrifugoClient.Publish(context.Background(), ch, b)
 }
 
 func (h *Handler) SendToUserCentrifugo(order *proto.Order) error {
@@ -286,7 +272,8 @@ func (h *Handler) SendToUserCentrifugo(order *proto.Order) error {
 		}
 	}
 
-	return h.sendToCentrifugo(msg, fmt.Sprintf(h.cfg.CentrifugoUserChannel, order.GetUuid()))
+	ch := fmt.Sprintf(h.cfg.CentrifugoUserChannel, order.GetUuid())
+	return h.centrifugoPaymentForm.Publish(context.Background(), ch, msg)
 }
 
 func (h *Handler) sendToAdminCentrifugo(order *proto.Order, message string) error {
@@ -295,7 +282,7 @@ func (h *Handler) sendToAdminCentrifugo(order *proto.Order, message string) erro
 		centrifugoFieldOrderId:       order.GetUuid(),
 	}
 
-	return h.sendToCentrifugo(msg, h.cfg.CentrifugoAdminChannel)
+	return h.centrifugoDashboard.Publish(context.Background(), h.cfg.CentrifugoAdminChannel, msg)
 }
 
 func (h *Handler) HandleError(msg string, err error, t Table) {

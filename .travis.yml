@@ -21,10 +21,15 @@ jobs:
     services:
     - rabbitmq
     - redis-server
+    env:
+      - CENTRIFUGO_PAYMENT_FORM_APISECRET=api_secret;
+      - CENTRIFUGO_DASHBOARD_APISECRET=api_secret;
+      - CENTRIFUGO_PAYMENT_FORM_URL="http://localhost/payment_form";
+      - CENTRIFUGO_DASHBOARD_URL="http://localhost/dashboard";
     install: true
     script:
     - go test ./... -coverprofile=coverage.out -covermode=atomic -p=1
-    - sonar-scanner
+#    - sonar-scanner
     after_success:
     - bash <(curl -s https://codecov.io/bash)
   - stage: deploy
