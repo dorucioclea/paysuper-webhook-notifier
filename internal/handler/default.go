@@ -198,6 +198,7 @@ func (n *Default) Notify() error {
 func (n *Default) sendRequest(url string, req interface{}, action string, secretKey string) (*http.Response, error) {
 	resp, err := n.sender.Send(url, req, action, secretKey)
 	if err != nil {
+		zap.L().Error("send request failed", zap.Error(err))
 		if err.Error() == errorHttpRequestFailed {
 			return nil, errors.New(fmt.Sprintf(errorNotificationNeedRetry, n.order.GetId(), action))
 		}
