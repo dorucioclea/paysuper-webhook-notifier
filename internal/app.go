@@ -290,6 +290,8 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 		}
 	}()
 
+	sender := handler.NewHttpSenderImpl()
+
 	h := handler.NewHandler(
 		o,
 		app.repo,
@@ -301,6 +303,7 @@ func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
 		app.cfg,
 		app.centrifugoPaymentForm,
 		app.centrifugoDashboard,
+		sender,
 	)
 
 	n, err := h.GetNotifier()

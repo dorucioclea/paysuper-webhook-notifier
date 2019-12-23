@@ -142,6 +142,8 @@ func (suite *HandlerTestSuite) SetupTest() {
 	bs := &billMocks.BillingService{}
 	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
 
+	sender := NewHttpSenderImpl()
+
 	suite.handler = NewHandler(
 		order,
 		bs,
@@ -153,6 +155,7 @@ func (suite *HandlerTestSuite) SetupTest() {
 		cfg,
 		centrifugoPaymentForm,
 		centrifugoDashboard,
+		sender,
 	)
 
 	assert.IsType(suite.T(), &Handler{}, suite.handler)

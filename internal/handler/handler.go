@@ -129,6 +129,7 @@ func NewHandler(
 	cfg *config.Config,
 	centrifugoPaymentForm CentrifugoInterface,
 	centrifugoDashboard CentrifugoInterface,
+	sender HttpSender,
 ) *Handler {
 	rtc := int32(0)
 
@@ -148,6 +149,7 @@ func NewHandler(
 		cfg:                      cfg,
 		centrifugoPaymentForm:    centrifugoPaymentForm,
 		centrifugoDashboard:      centrifugoDashboard,
+		sender:                   sender,
 	}
 }
 
@@ -296,7 +298,6 @@ func (h *Handler) sendToMerchantTestingCentrifugo(order *proto.Order, testCase s
 		centrifugoFieldResponce: response,
 		centrifugoFieldTestCase: testCase,
 	}
-
 
 	channel := fmt.Sprintf(h.cfg.CentrifugoMerchantTestingChannel, order.GetMerchantId())
 	zap.L().Info("Sending to testing result to centrifugoDashboard", zap.String("channel", channel), zap.String("centrifugo", h.cfg.CentrifugoDashboard.URL))
