@@ -47,7 +47,7 @@ func (n *httpSenderImpl) Send(url string, req interface{}, action string, secret
 	resp, err := n.request(http.MethodPost, reqUrl.String(), b, headers)
 
 	if err != nil {
-		zap.L().Error("request error", zap.Error(err), zap.String("url", reqUrl.String()), zap.Any("headers", headers), zap.String("body", string(b)))
+		zap.L().Error("request error", zap.Error(err), zap.String("url", reqUrl.String()))
 		return resp, err
 	}
 
