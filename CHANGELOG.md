@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 - Added tests to the new functionality.
 
 ### Changed
-- The centrifugo has been split into the multiple instances for sending notification to the Dashboard and the payment form.
+- The centrifugo has been split into multiple instances for sending notification to the Dashboard and the payment form.
 - Updated environment variables.
 - Update project's dependencies.
 - Update project's README.
