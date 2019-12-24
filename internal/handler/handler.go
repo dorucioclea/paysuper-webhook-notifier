@@ -15,6 +15,7 @@ import (
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 	rabbitmq "gopkg.in/ProtocolONE/rabbitmq.v1/pkg"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -84,6 +85,12 @@ var (
 )
 
 type Table map[string]interface{}
+
+type HttpResponse struct {
+	Body    string              `json:"body"`
+	Status  int                 `json:"status"`
+	Headers map[string][]string `json:"headers"`
+}
 
 type Notifier interface {
 	Notify() error
@@ -295,13 +302,28 @@ func (h *Handler) sendToAdminCentrifugo(order *proto.Order, message string) erro
 func (h *Handler) sendToMerchantTestingCentrifugo(order *proto.Order, testCase string, response *http.Response) error {
 	msg := map[string]interface{}{
 		centrifugoFieldOrderId:  order.GetUuid(),
-		centrifugoFieldResponce: response,
+		centrifugoFieldResponce: h.getHttpResoonse(response),
 		centrifugoFieldTestCase: testCase,
 	}
 
 	channel := fmt.Sprintf(h.cfg.CentrifugoMerchantTestingChannel, order.GetMerchantId())
 	zap.L().Info("Sending to testing result to centrifugoDashboard", zap.String("channel", channel), zap.String("centrifugo", h.cfg.CentrifugoDashboard.URL))
 	return h.centrifugoDashboard.Publish(context.Background(), channel, msg)
+}
+
+func (h *Handler) getHttpResoonse(resp *http.Response) *HttpResponse {
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		zap.L().Error("getHttpResoonse failed", zap.Error(err))
+		return nil
+	}
+	bodyString := string(bodyBytes)
+
+	return &HttpResponse{
+		Status:  resp.StatusCode,
+		Body:    bodyString,
+		Headers: resp.Header,
+	}
 }
 
 func (h *Handler) HandleError(msg string, err error, t Table) {
