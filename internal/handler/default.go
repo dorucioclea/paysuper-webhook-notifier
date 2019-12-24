@@ -163,19 +163,22 @@ func (n *Default) Notify() error {
 			}
 		}
 	} else {
-		zap.S().Errorw(errorNotSuccessStatus, "status", resp.StatusCode, "retry_count", n.RetryCount, "order.uuid", n.order.Uuid)
-		if n.RetryCount < RetryMaxCount {
-			return n.handleErrorWithRetry(loggerErrorNotificationRetry, errors.New(errorNotSuccessStatus), nil)
-		}
-		order.PrivateStatus = constant.OrderStatusProjectReject
 		if len(order.TestingCase) != 0 {
 			notifyRequest.IsPassed = order.TestingCase == pkg.TestCaseIncorrectPayment || order.TestingCase == pkg.TestCaseNonExistingUser
 			if _, err := n.repository.NotifyWebhookTestResults(context.TODO(), notifyRequest); err != nil {
 				zap.S().Errorw(errorCantNotifyBillingServer, "err", err)
+				return err
 			}
 			if err := n.sendToMerchantTestingCentrifugo(order, order.TestingCase, resp); err != nil {
 				zap.S().Errorw(errorCantNotifyMerchantServer, "err", err)
+				return err
 			}
+		} else {
+			zap.S().Errorw(errorNotSuccessStatus, "status", resp.StatusCode, "retry_count", n.RetryCount, "order.uuid", n.order.Uuid)
+			if n.RetryCount < RetryMaxCount {
+				return n.handleErrorWithRetry(loggerErrorNotificationRetry, errors.New(errorNotSuccessStatus), nil)
+			}
+			order.PrivateStatus = constant.OrderStatusProjectReject
 		}
 	}
 
