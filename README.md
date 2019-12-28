@@ -2,8 +2,8 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-brightgreen.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/paysuper/paysuper-webhook-notifier/issues)
-[![Build Status](https://travis-ci.org/paysuper/paysuper-webhook-notifier.svg?branch=master)](https://travis-ci.org/paysuper/paysuper-webhook-notifier) 
-[![codecov](https://codecov.io/gh/paysuper/paysuper-webhook-notifier/branch/master/graph/badge.svg)](https://codecov.io/gh/paysuper/paysuper-webhook-notifier) 
+[![Build Status](https://travis-ci.org/paysuper/paysuper-webhook-notifier.svg?branch=develop)](https://travis-ci.org/paysuper/paysuper-webhook-notifier) 
+[![codecov](https://codecov.io/gh/paysuper/paysuper-webhook-notifier/branch/develop/graph/badge.svg)](https://codecov.io/gh/paysuper/paysuper-webhook-notifier) 
 [![Go Report Card](https://goreportcard.com/badge/github.com/paysuper/paysuper-webhook-notifier)](https://goreportcard.com/report/github.com/paysuper/paysuper-webhook-notifier)
 
 PaySuper Webhook Notifier is a RabbitMQ consumer that sends the PaySuper notifications to projects.
