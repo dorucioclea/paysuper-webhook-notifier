@@ -26,3 +26,5 @@ require (
 )
 
 replace github.com/hashicorp/consul => github.com/hashicorp/consul v1.5.1
+
+go 1.13
