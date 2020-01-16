@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/globalsign/mgo/bson"
 	"github.com/go-redis/redis"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jarcoal/httpmock"
@@ -63,9 +62,9 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 
 	suite.handler = &Handler{
 		order: &billing.Order{
-			Id:            bson.NewObjectId().Hex(),
-			Uuid:          bson.NewObjectId().Hex(),
-			Transaction:   bson.NewObjectId().Hex(),
+			Id:            "254e3736-000f-5000-8000-178d1d80bf70",
+			Uuid:          "254e3736-000f-5000-8000-178d1d80bf70",
+			Transaction:   "254e3736-000f-5000-8000-178d1d80bf70",
 			Object:        "order",
 			Status:        "processed",
 			PrivateStatus: 4,
@@ -80,7 +79,7 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 			TotalPaymentAmount: 10.00,
 			Currency:           "RUB",
 			User: &billing.OrderUser{
-				Id:     bson.NewObjectId().Hex(),
+				Id:     "254e3736-000f-5000-8000-178d1d80bf70",
 				Object: "user",
 				Email:  "test@unit.test",
 				Ip:     "127.0.0.1",
@@ -102,13 +101,13 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 				Currency: "RUB",
 			},
 			PaymentMethod: &billing.PaymentMethodOrder{
-				Id:         bson.NewObjectId().Hex(),
+				Id:         "254e3736-000f-5000-8000-178d1d80bf70",
 				Name:       "Bank card",
 				ExternalId: "BANKCARD",
 			},
 			Project: &billing.ProjectOrder{
-				Id:                   bson.NewObjectId().Hex(),
-				MerchantId:           bson.NewObjectId().Hex(),
+				Id:                   "254e3736-000f-5000-8000-178d1d80bf70",
+				MerchantId:           "254e3736-000f-5000-8000-178d1d80bf70",
 				Name:                 map[string]string{"ru": "Test", "en": "Test"},
 				SecretKey:            "Unit Test",
 				UrlCheckAccount:      "http://localhost",
@@ -119,7 +118,7 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 				CallbackProtocol:     "default",
 				Status:               0,
 			},
-			ProjectOrderId:             bson.NewObjectId().Hex(),
+			ProjectOrderId:             "254e3736-000f-5000-8000-178d1d80bf70",
 			ProjectAccount:             "test@unit.test",
 			PaymentMethodOrderClosedAt: ptypes.TimestampNow(),
 			PaymentMethodPayerAccount:  "400000...0002",
