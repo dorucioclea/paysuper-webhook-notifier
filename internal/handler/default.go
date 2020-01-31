@@ -7,9 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/paysuper/paysuper-billing-server/pkg"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -34,24 +33,24 @@ const (
 )
 
 var orderPublicStatusToEventNameMapping = map[string]string{
-	constant.OrderPublicStatusProcessed:  eventNameSuccess,
-	constant.OrderPublicStatusChargeback: eventNameChargeback,
-	constant.OrderPublicStatusCanceled:   eventNameCancel,
-	constant.OrderPublicStatusRejected:   eventNameCancel,
-	constant.OrderPublicStatusRefunded:   eventNameRefund,
+	recurringpb.OrderPublicStatusProcessed:  eventNameSuccess,
+	recurringpb.OrderPublicStatusChargeback: eventNameChargeback,
+	recurringpb.OrderPublicStatusCanceled:   eventNameCancel,
+	recurringpb.OrderPublicStatusRejected:   eventNameCancel,
+	recurringpb.OrderPublicStatusRefunded:   eventNameRefund,
 }
 
 type Default Empty
 
 type OrderNotificationMessage struct {
-	Id          string         `json:"id"`
-	Type        string         `json:"type"`
-	Event       string         `json:"event"`
-	Live        bool           `json:"live"`
-	CreatedAt   string         `json:"created_at"`
-	ExpiresAt   string         `json:"expires_at"`
-	DeliveryTry int32          `json:"delivery_try"`
-	Object      *billing.Order `json:"object"`
+	Id          string           `json:"id"`
+	Type        string           `json:"type"`
+	Event       string           `json:"event"`
+	Live        bool             `json:"live"`
+	CreatedAt   string           `json:"created_at"`
+	ExpiresAt   string           `json:"expires_at"`
+	DeliveryTry int32            `json:"delivery_try"`
+	Object      *billingpb.Order `json:"object"`
 }
 
 func newDefaultHandler(h *Handler) Notifier {
@@ -61,7 +60,7 @@ func newDefaultHandler(h *Handler) Notifier {
 func (n *Default) Notify() error {
 	order := n.order
 
-	if order.Project.Status == pkg.ProjectStatusDeleted {
+	if order.Project.Status == billingpb.ProjectStatusDeleted {
 		if err := n.sendToAdminCentrifugo(n.order, centrifugoMsgNotificationForDeletedProject); err != nil {
 			n.HandleError(LoggerNotificationCentrifugo, err, nil)
 		}
@@ -106,15 +105,15 @@ func (n *Default) Notify() error {
 	}
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
-		if n.order.PrivateStatus == constant.OrderStatusPaymentSystemComplete {
-			order.PrivateStatus = constant.OrderStatusProjectComplete
+		if n.order.PrivateStatus == recurringpb.OrderStatusPaymentSystemComplete {
+			order.PrivateStatus = recurringpb.OrderStatusProjectComplete
 		}
 	} else {
 		zap.S().Errorw(errorNotSuccessStatus, "status", resp.StatusCode, "retry_count", n.RetryCount, "order.uuid", n.order.Uuid)
 		if n.RetryCount < RetryMaxCount {
 			return n.handleErrorWithRetry(loggerErrorNotificationRetry, errors.New(errorNotSuccessStatus), nil)
 		}
-		order.PrivateStatus = constant.OrderStatusProjectReject
+		order.PrivateStatus = recurringpb.OrderStatusProjectReject
 	}
 
 	err = n.setStat(statKey, ps, true)
@@ -186,7 +185,7 @@ func (n *Default) getPaymentNotification() (*OrderNotificationMessage, error) {
 		Object:      n.order,
 	}
 
-	res.Live = n.order.Project.Status == pkg.ProjectStatusInProduction
+	res.Live = n.order.Project.Status == billingpb.ProjectStatusInProduction
 
 	return res, nil
 }

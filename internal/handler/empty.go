@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 )
 
 type Empty struct {
@@ -14,11 +14,11 @@ func newEmptyHandler(h *Handler) Notifier {
 }
 
 func (n *Empty) Notify() error {
-	if n.order.PrivateStatus != constant.OrderStatusPaymentSystemComplete {
+	if n.order.PrivateStatus != recurringpb.OrderStatusPaymentSystemComplete {
 		return nil
 	}
 
-	n.order.PrivateStatus = constant.OrderStatusProjectComplete
+	n.order.PrivateStatus = recurringpb.OrderStatusProjectComplete
 	_, err := n.repository.UpdateOrder(context.TODO(), n.order)
 
 	if err != nil {

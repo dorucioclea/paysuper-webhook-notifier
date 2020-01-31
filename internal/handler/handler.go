@@ -7,10 +7,9 @@ import (
 	"fmt"
 	"github.com/go-redis/redis"
 	"github.com/micro/protobuf/ptypes"
-	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
-	"github.com/paysuper/paysuper-recurring-repository/tools"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
+	httpTool "github.com/paysuper/paysuper-tools/http"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
@@ -99,8 +98,8 @@ func (ns *NotificationStat) Get(key string) bool {
 }
 
 type Handler struct {
-	order                    *proto.Order
-	repository               grpc.BillingService
+	order                    *billingpb.Order
+	repository               billingpb.BillingService
 	retBrok                  rabbitmq.BrokerInterface
 	taxjarTransactionsBroker rabbitmq.BrokerInterface
 	taxjarRefundsBroker      rabbitmq.BrokerInterface
@@ -114,8 +113,8 @@ type Handler struct {
 }
 
 func NewHandler(
-	o *proto.Order,
-	rep grpc.BillingService,
+	o *billingpb.Order,
+	rep billingpb.BillingService,
 	retBrok rabbitmq.BrokerInterface,
 	taxjarTransactionsBroker rabbitmq.BrokerInterface,
 	taxjarRefundsBroker rabbitmq.BrokerInterface,
@@ -164,7 +163,7 @@ func (h *Handler) trySendToTaxJar() {
 	order := h.order
 
 	ps := order.GetPublicStatus()
-	isShouldSend := (ps == constant.OrderPublicStatusProcessed || ps == constant.OrderPublicStatusRefunded) && order.GetCountry() == CountryCodeUSA
+	isShouldSend := (ps == recurringpb.OrderPublicStatusProcessed || ps == recurringpb.OrderPublicStatusRefunded) && order.GetCountry() == CountryCodeUSA
 
 	if !isShouldSend {
 		return
@@ -181,16 +180,16 @@ func (h *Handler) trySendToTaxJar() {
 		taxjarStatusName string
 		taxjarBroker     rabbitmq.BrokerInterface
 	)
-	if ps == constant.OrderPublicStatusRefunded {
+	if ps == recurringpb.OrderPublicStatusRefunded {
 		taxjarBroker = h.taxjarRefundsBroker
-		topicName = constant.TaxjarRefundsTopicName
+		topicName = recurringpb.TaxjarRefundsTopicName
 		tjStatus = "refund"
-		taxjarStatusName = constant.TaxjarNotificationStatusRefund
+		taxjarStatusName = recurringpb.TaxjarNotificationStatusRefund
 	} else {
 		taxjarBroker = h.taxjarTransactionsBroker
-		topicName = constant.TaxjarTransactionsTopicName
+		topicName = recurringpb.TaxjarTransactionsTopicName
 		tjStatus = "payment"
-		taxjarStatusName = constant.TaxjarNotificationStatusPayment
+		taxjarStatusName = recurringpb.TaxjarNotificationStatusPayment
 	}
 
 	statKey := fmt.Sprintf(taxjarNotificationsKeyMask, order.Id)
@@ -242,7 +241,7 @@ func (h *Handler) validateUrl(cUrl string) (*url.URL, error) {
 }
 
 func (h *Handler) request(method, url string, req []byte, headers map[string]string) (*http.Response, error) {
-	client := tools.NewLoggedHttpClient(zap.S())
+	client := httpTool.NewLoggedHttpClient(zap.S())
 	httpReq, err := http.NewRequest(method, url, bytes.NewBuffer(req))
 
 	if err != nil {
@@ -256,7 +255,7 @@ func (h *Handler) request(method, url string, req []byte, headers map[string]str
 	return client.Do(httpReq)
 }
 
-func (h *Handler) SendToUserCentrifugo(order *proto.Order) error {
+func (h *Handler) SendToUserCentrifugo(order *billingpb.Order) error {
 	msg := map[string]interface{}{
 		centrifugoFieldOrderId: order.GetUuid(),
 		centrifugoFieldStatus:  OrderAlphabetStatuses[order.PrivateStatus],
@@ -276,7 +275,7 @@ func (h *Handler) SendToUserCentrifugo(order *proto.Order) error {
 	return h.centrifugoPaymentForm.Publish(context.Background(), ch, msg)
 }
 
-func (h *Handler) sendToAdminCentrifugo(order *proto.Order, message string) error {
+func (h *Handler) sendToAdminCentrifugo(order *billingpb.Order, message string) error {
 	msg := map[string]interface{}{
 		centrifugoFieldCustomMessage: message,
 		centrifugoFieldOrderId:       order.GetUuid(),

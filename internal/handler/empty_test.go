@@ -3,9 +3,8 @@ package handler
 import (
 	"errors"
 	"github.com/golang/protobuf/ptypes"
-	billMocks "github.com/paysuper/paysuper-billing-server/pkg/mocks"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	billMocks "github.com/paysuper/paysuper-proto/go/billingpb/mocks"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/mock"
 	"github.com/stretchr/testify/assert"
@@ -32,10 +31,10 @@ func (suite *EmptyHandlerTestSuite) SetupTest() {
 	assert.NotEmpty(suite.T(), cfg.BrokerAddress)
 
 	bs := &billMocks.BillingService{}
-	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
+	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&billingpb.EmptyResponse{}, nil)
 
 	suite.handler = &Handler{
-		order: &billing.Order{
+		order: &billingpb.Order{
 			Id:            "254e3736-000f-5000-8000-178d1d80bf70",
 			Uuid:          "254e3736-000f-5000-8000-178d1d80bf70",
 			Transaction:   "254e3736-000f-5000-8000-178d1d80bf70",
@@ -46,18 +45,18 @@ func (suite *EmptyHandlerTestSuite) SetupTest() {
 			CreatedAt:     ptypes.TimestampNow(),
 			UpdatedAt:     ptypes.TimestampNow(),
 			ReceiptEmail:  "test@unit.test",
-			Issuer: &billing.OrderIssuer{
+			Issuer: &billingpb.OrderIssuer{
 				Url:      "http://localhost",
 				Embedded: false,
 			},
 			TotalPaymentAmount: 10.00,
 			Currency:           "RUB",
-			User: &billing.OrderUser{
+			User: &billingpb.OrderUser{
 				Id:     "254e3736-000f-5000-8000-178d1d80bf70",
 				Object: "user",
 				Email:  "test@unit.test",
 				Ip:     "127.0.0.1",
-				Address: &billing.OrderBillingAddress{
+				Address: &billingpb.OrderBillingAddress{
 					Country:    "RU",
 					City:       "St Petersburg",
 					PostalCode: "190000",
@@ -65,21 +64,21 @@ func (suite *EmptyHandlerTestSuite) SetupTest() {
 				},
 				TechEmail: "eqpAR7uqwC2KBfKZOAEknnKlLcCXtAdn@paysuper.com",
 			},
-			BillingAddress: &billing.OrderBillingAddress{
+			BillingAddress: &billingpb.OrderBillingAddress{
 				Country: "RU",
 			},
-			Tax: &billing.OrderTax{
+			Tax: &billingpb.OrderTax{
 				Type:     "vat",
 				Rate:     0.0,
 				Amount:   0.0,
 				Currency: "RUB",
 			},
-			PaymentMethod: &billing.PaymentMethodOrder{
+			PaymentMethod: &billingpb.PaymentMethodOrder{
 				Id:         "254e3736-000f-5000-8000-178d1d80bf70",
 				Name:       "Bank card",
 				ExternalId: "BANKCARD",
 			},
-			Project: &billing.ProjectOrder{
+			Project: &billingpb.ProjectOrder{
 				Id:                "254e3736-000f-5000-8000-178d1d80bf70",
 				MerchantId:        "254e3736-000f-5000-8000-178d1d80bf70",
 				Name:              map[string]string{"ru": "Test", "en": "Test"},

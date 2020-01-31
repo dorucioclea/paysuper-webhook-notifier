@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"github.com/go-redis/redis"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/paysuper/paysuper-billing-server/pkg"
-	billMocks "github.com/paysuper/paysuper-billing-server/pkg/mocks"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	billMocks "github.com/paysuper/paysuper-proto/go/billingpb/mocks"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/mock"
 	"github.com/streadway/amqp"
@@ -44,7 +42,7 @@ func (suite *HandlerTestSuite) SetupTest() {
 		assert.FailNow(suite.T(), "Configuration load failed", "%v", err)
 	}
 
-	order := &billing.Order{
+	order := &billingpb.Order{
 		Id:            "254e3736-000f-5000-8000-178d1d80bf70",
 		Uuid:          "254e3736-000f-5000-8000-178d1d80bf70",
 		Transaction:   "254e3736-000f-5000-8000-178d1d80bf70",
@@ -55,18 +53,18 @@ func (suite *HandlerTestSuite) SetupTest() {
 		CreatedAt:     ptypes.TimestampNow(),
 		UpdatedAt:     ptypes.TimestampNow(),
 		ReceiptEmail:  "test@unit.test",
-		Issuer: &billing.OrderIssuer{
+		Issuer: &billingpb.OrderIssuer{
 			Url:      "http://localhost",
 			Embedded: false,
 		},
 		TotalPaymentAmount: 10.00,
 		Currency:           "RUB",
-		User: &billing.OrderUser{
+		User: &billingpb.OrderUser{
 			Id:     "254e3736-000f-5000-8000-178d1d80bf70",
 			Object: "user",
 			Email:  "test@unit.test",
 			Ip:     "127.0.0.1",
-			Address: &billing.OrderBillingAddress{
+			Address: &billingpb.OrderBillingAddress{
 				Country:    "RU",
 				City:       "St Petersburg",
 				PostalCode: "190000",
@@ -74,21 +72,21 @@ func (suite *HandlerTestSuite) SetupTest() {
 			},
 			TechEmail: "eqpAR7uqwC2KBfKZOAEknnKlLcCXtAdn@paysuper.com",
 		},
-		BillingAddress: &billing.OrderBillingAddress{
+		BillingAddress: &billingpb.OrderBillingAddress{
 			Country: "RU",
 		},
-		Tax: &billing.OrderTax{
+		Tax: &billingpb.OrderTax{
 			Type:     "vat",
 			Rate:     0.0,
 			Amount:   0.0,
 			Currency: "RUB",
 		},
-		PaymentMethod: &billing.PaymentMethodOrder{
+		PaymentMethod: &billingpb.PaymentMethodOrder{
 			Id:         "254e3736-000f-5000-8000-178d1d80bf70",
 			Name:       "Bank card",
 			ExternalId: "BANKCARD",
 		},
-		Project: &billing.ProjectOrder{
+		Project: &billingpb.ProjectOrder{
 			Id:                "254e3736-000f-5000-8000-178d1d80bf70",
 			MerchantId:        "254e3736-000f-5000-8000-178d1d80bf70",
 			Name:              map[string]string{"ru": "Test", "en": "Test"},
@@ -139,7 +137,7 @@ func (suite *HandlerTestSuite) SetupTest() {
 	}
 
 	bs := &billMocks.BillingService{}
-	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
+	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&billingpb.EmptyResponse{}, nil)
 
 	suite.handler = NewHandler(
 		order,
@@ -155,8 +153,8 @@ func (suite *HandlerTestSuite) SetupTest() {
 	)
 
 	assert.IsType(suite.T(), &Handler{}, suite.handler)
-	assert.IsType(suite.T(), &billing.Order{}, suite.handler.order)
-	assert.Implements(suite.T(), (*grpc.BillingService)(nil), suite.handler.repository)
+	assert.IsType(suite.T(), &billingpb.Order{}, suite.handler.order)
+	assert.Implements(suite.T(), (*billingpb.BillingService)(nil), suite.handler.repository)
 	assert.Implements(suite.T(), (*CentrifugoInterface)(nil), suite.handler.centrifugoPaymentForm)
 	assert.Implements(suite.T(), (*CentrifugoInterface)(nil), suite.handler.centrifugoDashboard)
 	assert.Implements(suite.T(), (*rabbitmq.BrokerInterface)(nil), suite.handler.retBrok)
@@ -218,29 +216,29 @@ func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_SuccessOrder() {
 func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_DeclineOrder() {
 	zap.ReplaceGlobals(suite.logObserver)
 
-	order := &billing.Order{
+	order := &billingpb.Order{
 		Id:            "254e3736-000f-5000-8000-178d1d80bf70",
 		Uuid:          "254e3736-000f-5000-8000-178d1d80bf70",
 		Transaction:   "254e3736-000f-5000-8000-178d1d80bf70",
 		Object:        "order",
-		Status:        constant.OrderPublicStatusRejected,
-		PrivateStatus: constant.OrderStatusPaymentSystemDeclined,
+		Status:        recurringpb.OrderPublicStatusRejected,
+		PrivateStatus: recurringpb.OrderStatusPaymentSystemDeclined,
 		Description:   "Payment by order",
 		CreatedAt:     ptypes.TimestampNow(),
 		UpdatedAt:     ptypes.TimestampNow(),
 		ReceiptEmail:  "test@unit.test",
-		Issuer: &billing.OrderIssuer{
+		Issuer: &billingpb.OrderIssuer{
 			Url:      "http://localhost",
 			Embedded: false,
 		},
 		TotalPaymentAmount: 10.00,
 		Currency:           "RUB",
-		User: &billing.OrderUser{
+		User: &billingpb.OrderUser{
 			Id:     "254e3736-000f-5000-8000-178d1d80bf70",
 			Object: "user",
 			Email:  "test@unit.test",
 			Ip:     "127.0.0.1",
-			Address: &billing.OrderBillingAddress{
+			Address: &billingpb.OrderBillingAddress{
 				Country:    "RU",
 				City:       "St Petersburg",
 				PostalCode: "190000",
@@ -248,21 +246,21 @@ func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_DeclineOrder() {
 			},
 			TechEmail: "eqpAR7uqwC2KBfKZOAEknnKlLcCXtAdn@paysuper.com",
 		},
-		BillingAddress: &billing.OrderBillingAddress{
+		BillingAddress: &billingpb.OrderBillingAddress{
 			Country: "RU",
 		},
-		Tax: &billing.OrderTax{
+		Tax: &billingpb.OrderTax{
 			Type:     "vat",
 			Rate:     0.0,
 			Amount:   0.0,
 			Currency: "RUB",
 		},
-		PaymentMethod: &billing.PaymentMethodOrder{
+		PaymentMethod: &billingpb.PaymentMethodOrder{
 			Id:         "254e3736-000f-5000-8000-178d1d80bf70",
 			Name:       "Bank card",
 			ExternalId: "BANKCARD",
 		},
-		Project: &billing.ProjectOrder{
+		Project: &billingpb.ProjectOrder{
 			Id:                "254e3736-000f-5000-8000-178d1d80bf70",
 			MerchantId:        "254e3736-000f-5000-8000-178d1d80bf70",
 			Name:              map[string]string{"ru": "Test", "en": "Test"},
@@ -277,14 +275,14 @@ func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_DeclineOrder() {
 		PaymentMethodOrderClosedAt: ptypes.TimestampNow(),
 		PaymentMethodPayerAccount:  "400000...0002",
 		PaymentMethodTxnParams: map[string]string{
-			"pan":                           "400000...0002",
-			"card_holder":                   "UNIT TEST",
-			"emission_country":              "US",
-			"token":                         "",
-			"rrn":                           "",
-			"is_3ds":                        "1",
-			pkg.TxnParamsFieldDeclineCode:   "11",
-			pkg.TxnParamsFieldDeclineReason: "Some reason",
+			"pan":                                 "400000...0002",
+			"card_holder":                         "UNIT TEST",
+			"emission_country":                    "US",
+			"token":                               "",
+			"rrn":                                 "",
+			"is_3ds":                              "1",
+			billingpb.TxnParamsFieldDeclineCode:   "11",
+			billingpb.TxnParamsFieldDeclineReason: "Some reason",
 		},
 		PaymentRequisites: map[string]string{
 			"bank_issuer_country": "RUSSIA",
@@ -338,7 +336,7 @@ func (suite *HandlerTestSuite) TestHandler_SendToUserCentrifugo_DeclineOrder() {
 	assert.Contains(suite.T(), decline, "reason")
 
 	assert.Equal(suite.T(), order.GetPublicDeclineCode(), decline["code"])
-	assert.Equal(suite.T(), order.PaymentMethodTxnParams[pkg.TxnParamsFieldDeclineReason], decline["reason"])
+	assert.Equal(suite.T(), order.PaymentMethodTxnParams[billingpb.TxnParamsFieldDeclineReason], decline["reason"])
 	assert.Equal(suite.T(), order.Uuid, data[centrifugoFieldOrderId])
 	assert.Equal(suite.T(), OrderAlphabetStatuses[order.PrivateStatus], data[centrifugoFieldStatus])
 }

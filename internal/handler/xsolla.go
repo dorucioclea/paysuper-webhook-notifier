@@ -8,8 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/micro/protobuf/ptypes"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
-	proto "github.com/paysuper/paysuper-recurring-repository/pkg/proto/entity"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"net/http"
 )
 
@@ -46,10 +45,10 @@ func (n *XSolla) Notify() error {
 	}
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
-		n.order.PrivateStatus = constant.OrderStatusProjectComplete
+		n.order.PrivateStatus = recurringpb.OrderStatusProjectComplete
 	} else {
 		// in future in that case must be generating refund request to payment system
-		n.order.PrivateStatus = constant.OrderStatusProjectReject
+		n.order.PrivateStatus = recurringpb.OrderStatusProjectReject
 	}
 
 	if _, err := n.repository.UpdateOrder(context.TODO(), n.order); err != nil {
@@ -94,10 +93,10 @@ func (n *XSolla) sendRequest(url string, req interface{}, action string) (*http.
 	return resp, nil
 }
 
-func (n *XSolla) getCheckNotification() *proto.XSollaCheckNotification {
-	return &proto.XSollaCheckNotification{
+func (n *XSolla) getCheckNotification() *recurringpb.XSollaCheckNotification {
+	return &recurringpb.XSollaCheckNotification{
 		NotificationType: xsollaCheckNotificationType,
-		User: &proto.XSollaUser{
+		User: &recurringpb.XSollaUser{
 			Id:      n.order.GetProjectAccount(),
 			Ip:      n.order.User.GetIp(),
 			Phone:   n.order.User.GetPhone(),
@@ -108,7 +107,7 @@ func (n *XSolla) getCheckNotification() *proto.XSollaCheckNotification {
 	}
 }
 
-func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, error) {
+func (n *XSolla) getPaymentNotification() (*recurringpb.XSollaPaymentNotification, error) {
 	tDate, err := ptypes.Timestamp(n.order.GetPaymentMethodOrderClosedAt())
 
 	if err != nil {
@@ -121,19 +120,19 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 		payoutAmount -= n.order.Tax.Amount
 	}
 
-	pn := &proto.XSollaPaymentNotification{
+	pn := &recurringpb.XSollaPaymentNotification{
 		NotificationType: xsollaPaymentNotificationType,
-		Purchase: &proto.XSollaPurchase{
-			Checkout: &proto.XSollaCheckout{
+		Purchase: &recurringpb.XSollaPurchase{
+			Checkout: &recurringpb.XSollaCheckout{
 				Currency: n.order.GetCurrency(),
 				Amount:   n.order.GetOrderAmount(),
 			},
-			Total: &proto.XSollaTotal{
+			Total: &recurringpb.XSollaTotal{
 				Currency: n.order.GetCurrency(),
 				Amount:   n.order.GetOrderAmount(),
 			},
 		},
-		User: &proto.XSollaUser{
+		User: &recurringpb.XSollaUser{
 			Id:      n.order.GetProjectAccount(),
 			Ip:      n.order.User.GetIp(),
 			Phone:   n.order.User.GetPhone(),
@@ -141,19 +140,19 @@ func (n *XSolla) getPaymentNotification() (*proto.XSollaPaymentNotification, err
 			Name:    n.order.ProjectAccount,
 			Country: n.order.User.Address.GetCountry(),
 		},
-		Transaction: &proto.XSollaTransaction{
+		Transaction: &recurringpb.XSollaTransaction{
 			Id:            n.order.GetId(),
 			ExternalId:    n.order.GetProjectOrderId(),
-			PaymentDate:   tDate.Format(constant.PaymentSystemCardPayDateFormat),
+			PaymentDate:   tDate.Format(recurringpb.PaymentSystemCardPayDateFormat),
 			PaymentMethod: n.order.GetPaymentMethod().GetGroup(),
 			DryRun:        0,
 		},
-		PaymentDetails: &proto.XSollaPaymentDetails{
-			Payment: &proto.XSollaPayment{
+		PaymentDetails: &recurringpb.XSollaPaymentDetails{
+			Payment: &recurringpb.XSollaPayment{
 				Currency: n.order.GetCurrency(),
 				Amount:   n.order.GetOrderAmount(),
 			},
-			Vat: &proto.XSollaVat{
+			Vat: &recurringpb.XSollaVat{
 				Currency: n.order.GetCurrency(),
 				Amount:   n.order.GetOrderAmount(),
 			},

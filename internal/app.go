@@ -10,10 +10,8 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/micro/go-micro"
 	"github.com/micro/go-plugins/client/selector/static"
-	"github.com/paysuper/paysuper-billing-server/pkg"
-	proto "github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/handler"
 	"github.com/streadway/amqp"
@@ -34,7 +32,7 @@ const (
 
 type NotifierApplication struct {
 	cfg  *config.Config
-	repo grpc.BillingService
+	repo billingpb.BillingService
 
 	centrifugoPaymentForm handler.CentrifugoInterface
 	centrifugoDashboard   handler.CentrifugoInterface
@@ -80,7 +78,7 @@ func (app *NotifierApplication) Init() {
 
 	options := []micro.Option{
 		micro.Name(serviceName),
-		micro.Version(constant.PayOneMicroserviceVersion),
+		micro.Version(recurringpb.PayOneMicroserviceVersion),
 		micro.AfterStop(func() error {
 			app.log.Info("Micro service stopped")
 			return nil
@@ -97,7 +95,7 @@ func (app *NotifierApplication) Init() {
 	service = micro.NewService(options...)
 	service.Init()
 
-	app.repo = grpc.NewBillingService(pkg.ServiceName, service.Client())
+	app.repo = billingpb.NewBillingService(billingpb.ServiceName, service.Client())
 	app.centrifugoPaymentForm = handler.NewCentrifugo(app.cfg.CentrifugoPaymentForm, NewCentrifugoHttpClient())
 	app.centrifugoDashboard = handler.NewCentrifugo(app.cfg.CentrifugoDashboard, NewCentrifugoHttpClient())
 
@@ -159,13 +157,13 @@ func (app *NotifierApplication) initBroker() {
 	}
 
 	retryBroker.(*rabbitmq.Broker).Opts.QueueOpts.Args = amqp.Table{
-		"x-dead-letter-exchange":    constant.PayOneTopicNotifyPaymentName,
+		"x-dead-letter-exchange":    recurringpb.PayOneTopicNotifyPaymentName,
 		"x-message-ttl":             int32(handler.RetryDlxTimeout * 1000),
 		"x-dead-letter-routing-key": "*",
 	}
 	retryBroker.SetExchangeName(handler.RetryExchangeName)
 
-	err = broker.RegisterSubscriber(constant.PayOneTopicNotifyPaymentName, app.Process)
+	err = broker.RegisterSubscriber(recurringpb.PayOneTopicNotifyPaymentName, app.Process)
 
 	if err != nil {
 		app.log.Fatal("Registration RabbitMQ broker handler failed", zap.Error(err))
@@ -179,7 +177,7 @@ func (app *NotifierApplication) initBroker() {
 			zap.String("amqp_url", app.cfg.BrokerAddress),
 		)
 	}
-	taxjarTransactionsBroker.SetExchangeName(constant.TaxjarTransactionsTopicName)
+	taxjarTransactionsBroker.SetExchangeName(recurringpb.TaxjarTransactionsTopicName)
 
 	taxjarRefundsBroker, err := rabbitmq.NewBroker(app.cfg.BrokerAddress)
 	if err != nil {
@@ -189,7 +187,7 @@ func (app *NotifierApplication) initBroker() {
 			zap.String("amqp_url", app.cfg.BrokerAddress),
 		)
 	}
-	taxjarRefundsBroker.SetExchangeName(constant.TaxjarRefundsTopicName)
+	taxjarRefundsBroker.SetExchangeName(recurringpb.TaxjarRefundsTopicName)
 
 	app.broker = broker
 	app.retryBroker = retryBroker
@@ -261,7 +259,7 @@ func (app *NotifierApplication) Stop() {
 	}()
 }
 
-func (app *NotifierApplication) Process(o *proto.Order, d amqp.Delivery) error {
+func (app *NotifierApplication) Process(o *billingpb.Order, d amqp.Delivery) error {
 	id := o.Id
 	handlerName := o.Project.GetCallbackProtocol()
 	mName := fmt.Sprintf(mutexNameMask, handlerName, id)

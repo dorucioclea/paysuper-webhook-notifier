@@ -7,11 +7,9 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/jarcoal/httpmock"
-	"github.com/paysuper/paysuper-billing-server/pkg"
-	billMocks "github.com/paysuper/paysuper-billing-server/pkg/mocks"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/billing"
-	"github.com/paysuper/paysuper-billing-server/pkg/proto/grpc"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
+	"github.com/paysuper/paysuper-proto/go/billingpb"
+	billMocks "github.com/paysuper/paysuper-proto/go/billingpb/mocks"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/config"
 	"github.com/paysuper/paysuper-webhook-notifier/internal/mock"
 	"github.com/streadway/amqp"
@@ -58,10 +56,10 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 	assert.NoError(suite.T(), err)
 
 	bs := &billMocks.BillingService{}
-	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&grpc.EmptyResponse{}, nil)
+	bs.On("UpdateOrder", mock2.Anything, mock2.Anything, mock2.Anything).Return(&billingpb.EmptyResponse{}, nil)
 
 	suite.handler = &Handler{
-		order: &billing.Order{
+		order: &billingpb.Order{
 			Id:            "254e3736-000f-5000-8000-178d1d80bf70",
 			Uuid:          "254e3736-000f-5000-8000-178d1d80bf70",
 			Transaction:   "254e3736-000f-5000-8000-178d1d80bf70",
@@ -72,18 +70,18 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 			CreatedAt:     ptypes.TimestampNow(),
 			UpdatedAt:     ptypes.TimestampNow(),
 			ReceiptEmail:  "test@unit.test",
-			Issuer: &billing.OrderIssuer{
+			Issuer: &billingpb.OrderIssuer{
 				Url:      "http://localhost",
 				Embedded: false,
 			},
 			TotalPaymentAmount: 10.00,
 			Currency:           "RUB",
-			User: &billing.OrderUser{
+			User: &billingpb.OrderUser{
 				Id:     "254e3736-000f-5000-8000-178d1d80bf70",
 				Object: "user",
 				Email:  "test@unit.test",
 				Ip:     "127.0.0.1",
-				Address: &billing.OrderBillingAddress{
+				Address: &billingpb.OrderBillingAddress{
 					Country:    "RU",
 					City:       "St Petersburg",
 					PostalCode: "190000",
@@ -91,21 +89,21 @@ func (suite *DefaultHandlerTestSuite) SetupTest() {
 				},
 				TechEmail: "eqpAR7uqwC2KBfKZOAEknnKlLcCXtAdn@paysuper.com",
 			},
-			BillingAddress: &billing.OrderBillingAddress{
+			BillingAddress: &billingpb.OrderBillingAddress{
 				Country: "RU",
 			},
-			Tax: &billing.OrderTax{
+			Tax: &billingpb.OrderTax{
 				Type:     "vat",
 				Rate:     0.0,
 				Amount:   0.0,
 				Currency: "RUB",
 			},
-			PaymentMethod: &billing.PaymentMethodOrder{
+			PaymentMethod: &billingpb.PaymentMethodOrder{
 				Id:         "254e3736-000f-5000-8000-178d1d80bf70",
 				Name:       "Bank card",
 				ExternalId: "BANKCARD",
 			},
-			Project: &billing.ProjectOrder{
+			Project: &billingpb.ProjectOrder{
 				Id:                   "254e3736-000f-5000-8000-178d1d80bf70",
 				MerchantId:           "254e3736-000f-5000-8000-178d1d80bf70",
 				Name:                 map[string]string{"ru": "Test", "en": "Test"},
@@ -168,10 +166,10 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_Ok() {
 	defer httpmock.DeactivateAndReset()
 	httpmock.RegisterResponder("POST", processUrl, httpmock.NewStringResponder(http.StatusOK, ""))
 
-	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(constant.OrderStatusPaymentSystemComplete))
+	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(recurringpb.OrderStatusPaymentSystemComplete))
 
 	ps := suite.handler.order.GetPublicStatus()
-	assert.Equal(suite.T(), ps, constant.OrderPublicStatusProcessed)
+	assert.Equal(suite.T(), ps, recurringpb.OrderPublicStatusProcessed)
 
 	statKey := fmt.Sprintf(psNotificationsKeyMask, suite.handler.order.Id)
 	stat, err := suite.handler.getStat(statKey)
@@ -189,10 +187,10 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_Ok() {
 	assert.Equal(suite.T(), len(info), 1)
 	assert.Equal(suite.T(), info["POST "+processUrl], 1)
 
-	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(constant.OrderStatusProjectComplete))
+	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(recurringpb.OrderStatusProjectComplete))
 
 	ps = suite.handler.order.GetPublicStatus()
-	assert.Equal(suite.T(), ps, constant.OrderPublicStatusProcessed)
+	assert.Equal(suite.T(), ps, recurringpb.OrderPublicStatusProcessed)
 
 	nS = suite.handler.order.GetNotificationStatus(ps)
 	assert.True(suite.T(), nS)
@@ -203,10 +201,10 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_Rejected() {
 	defer httpmock.DeactivateAndReset()
 	httpmock.RegisterResponder("POST", processUrl, httpmock.NewStringResponder(http.StatusUnprocessableEntity, ""))
 
-	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(constant.OrderStatusPaymentSystemComplete))
+	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(recurringpb.OrderStatusPaymentSystemComplete))
 
 	ps := suite.handler.order.GetPublicStatus()
-	assert.Equal(suite.T(), ps, constant.OrderPublicStatusProcessed)
+	assert.Equal(suite.T(), ps, recurringpb.OrderPublicStatusProcessed)
 
 	nS := suite.handler.order.GetNotificationStatus(ps)
 	assert.False(suite.T(), nS)
@@ -218,15 +216,15 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_Rejected() {
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(suite.T(), len(info), 1)
 	assert.Equal(suite.T(), info["POST "+processUrl], 1)
-	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(constant.OrderStatusPaymentSystemComplete))
+	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(recurringpb.OrderStatusPaymentSystemComplete))
 
 	suite.handler.RetryCount = RetryMaxCount
 	err = suite.defaultHandler.Notify()
 	assert.NoError(suite.T(), err)
 
-	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(constant.OrderStatusProjectReject))
+	assert.Equal(suite.T(), suite.handler.order.PrivateStatus, int32(recurringpb.OrderStatusProjectReject))
 
-	assert.Equal(suite.T(), suite.handler.order.GetPublicStatus(), constant.OrderPublicStatusRejected)
+	assert.Equal(suite.T(), suite.handler.order.GetPublicStatus(), recurringpb.OrderPublicStatusRejected)
 
 	nS = suite.handler.order.GetNotificationStatus(ps)
 	assert.True(suite.T(), nS)
@@ -238,7 +236,7 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_DeletedProject_F
 
 	httpmock.RegisterResponder("POST", processUrl, httpmock.NewStringResponder(http.StatusOK, ""))
 
-	suite.handler.order.Project.Status = pkg.ProjectStatusDeleted
+	suite.handler.order.Project.Status = billingpb.ProjectStatusDeleted
 	err := suite.defaultHandler.Notify()
 	assert.EqualError(suite.T(), err, loggerErrorDeletedProject)
 	assert.False(suite.T(), suite.handler.retryProcess)
@@ -250,7 +248,7 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_DeletedProject_F
 
 func (suite *DefaultHandlerTestSuite) TestDefaultHandler_Notify_AlreadySent_Ok() {
 	ps := suite.handler.order.GetPublicStatus()
-	assert.Equal(suite.T(), ps, constant.OrderPublicStatusProcessed)
+	assert.Equal(suite.T(), ps, recurringpb.OrderPublicStatusProcessed)
 
 	statKey := fmt.Sprintf(psNotificationsKeyMask, suite.handler.order.Id)
 	err := suite.handler.setStat(statKey, ps, true)
@@ -328,7 +326,7 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getNotificationEventNam
 	assert.Empty(suite.T(), en)
 
 	ps := suite.handler.order.GetPublicStatus()
-	assert.Equal(suite.T(), ps, constant.OrderPublicStatusProcessed)
+	assert.Equal(suite.T(), ps, recurringpb.OrderPublicStatusProcessed)
 
 	en = defaultHandler.getNotificationEventName(ps)
 	assert.NotEmpty(suite.T(), en)
@@ -340,7 +338,7 @@ func (suite *DefaultHandlerTestSuite) TestDefaultHandler_getNotificationUrl() {
 	defaultHandler.Handler = suite.handler
 
 	ps := suite.handler.order.GetPublicStatus()
-	assert.Equal(suite.T(), ps, constant.OrderPublicStatusProcessed)
+	assert.Equal(suite.T(), ps, recurringpb.OrderPublicStatusProcessed)
 	assert.Equal(suite.T(), ps, "processed")
 
 	en := defaultHandler.getNotificationUrl(ps)

@@ -8,8 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/paysuper/paysuper-recurring-repository/pkg/constant"
-	proto "github.com/paysuper/paysuper-recurring-repository/pkg/proto/entity"
+	"github.com/paysuper/paysuper-proto/go/recurringpb"
 	"net/http"
 	"strconv"
 	"time"
@@ -18,19 +17,19 @@ import (
 type CardPay Empty
 
 var OrderAlphabetStatuses = map[int32]string{
-	constant.OrderStatusNew:                         "NEW",
-	constant.OrderStatusPaymentSystemCreate:         "IN_PROGRESS",
-	constant.OrderStatusPaymentSystemRejectOnCreate: "DECLINED",
-	constant.OrderStatusPaymentSystemReject:         "DECLINED",
-	constant.OrderStatusPaymentSystemComplete:       "COMPLETED",
-	constant.OrderStatusProjectInProgress:           "COMPLETED",
-	constant.OrderStatusProjectComplete:             "COMPLETED",
-	constant.OrderStatusProjectPending:              "COMPLETED",
-	constant.OrderStatusProjectReject:               "REFUNDED",
-	constant.OrderStatusRefund:                      "REFUNDED",
-	constant.OrderStatusChargeback:                  "CHARGEBACK_RESOLVED",
-	constant.OrderStatusPaymentSystemDeclined:       "DECLINED",
-	constant.OrderStatusPaymentSystemCanceled:       "CANCELLED",
+	recurringpb.OrderStatusNew:                         "NEW",
+	recurringpb.OrderStatusPaymentSystemCreate:         "IN_PROGRESS",
+	recurringpb.OrderStatusPaymentSystemRejectOnCreate: "DECLINED",
+	recurringpb.OrderStatusPaymentSystemReject:         "DECLINED",
+	recurringpb.OrderStatusPaymentSystemComplete:       "COMPLETED",
+	recurringpb.OrderStatusProjectInProgress:           "COMPLETED",
+	recurringpb.OrderStatusProjectComplete:             "COMPLETED",
+	recurringpb.OrderStatusProjectPending:              "COMPLETED",
+	recurringpb.OrderStatusProjectReject:               "REFUNDED",
+	recurringpb.OrderStatusRefund:                      "REFUNDED",
+	recurringpb.OrderStatusChargeback:                  "CHARGEBACK_RESOLVED",
+	recurringpb.OrderStatusPaymentSystemDeclined:       "DECLINED",
+	recurringpb.OrderStatusPaymentSystemCanceled:       "CANCELLED",
 }
 
 func newCardPayHandler(h *Handler) Notifier {
@@ -70,10 +69,10 @@ func (n *CardPay) Notify() error {
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		n.order.PrivateStatus = constant.OrderStatusProjectComplete
+		n.order.PrivateStatus = recurringpb.OrderStatusProjectComplete
 		break
 	case http.StatusUnprocessableEntity:
-		n.order.PrivateStatus = constant.OrderStatusProjectReject
+		n.order.PrivateStatus = recurringpb.OrderStatusProjectReject
 		break
 	default:
 		return n.handleErrorWithRetry(loggerErrorNotificationRetry, err, nil)
@@ -86,15 +85,15 @@ func (n *CardPay) Notify() error {
 	return nil
 }
 
-func (n *CardPay) getCallbackRequest() (*proto.CardPayPaymentCallback, error) {
-	req := &proto.CardPayPaymentCallback{
+func (n *CardPay) getCallbackRequest() (*recurringpb.CardPayPaymentCallback, error) {
+	req := &recurringpb.CardPayPaymentCallback{
 		PaymentMethod: n.order.GetPaymentMethod().GetGroup(),
-		CallbackTime:  time.Now().Format(constant.PaymentSystemCardPayDateFormat),
-		MerchantOrder: &proto.CardPayMerchantOrder{
+		CallbackTime:  time.Now().Format(recurringpb.PaymentSystemCardPayDateFormat),
+		MerchantOrder: &recurringpb.CardPayMerchantOrder{
 			Id:          n.order.GetProjectOrderId(),
 			Description: n.order.GetDescription(),
 		},
-		Customer: &proto.CardPayCustomer{
+		Customer: &recurringpb.CardPayCustomer{
 			Id:     n.order.GetProjectAccount(),
 			Ip:     n.order.User.GetIp(),
 			Email:  n.order.User.GetEmail(),
@@ -107,18 +106,18 @@ func (n *CardPay) getCallbackRequest() (*proto.CardPayPaymentCallback, error) {
 	}
 
 	switch req.PaymentMethod {
-	case constant.PaymentSystemGroupAliasBankCard:
+	case recurringpb.PaymentSystemGroupAliasBankCard:
 		if err := n.setBankCardTransactionParams(req); err != nil {
 			return nil, err
 		}
 		break
-	case constant.PaymentSystemGroupAliasQiwi,
-		constant.PaymentSystemGroupAliasWebMoney,
-		constant.PaymentSystemGroupAliasNeteller,
-		constant.PaymentSystemGroupAliasAlipay:
-		req.EwalletAccount = &proto.CardPayEWalletAccount{Id: n.order.GetPaymentMethodPayerAccount()}
+	case recurringpb.PaymentSystemGroupAliasQiwi,
+		recurringpb.PaymentSystemGroupAliasWebMoney,
+		recurringpb.PaymentSystemGroupAliasNeteller,
+		recurringpb.PaymentSystemGroupAliasAlipay:
+		req.EwalletAccount = &recurringpb.CardPayEWalletAccount{Id: n.order.GetPaymentMethodPayerAccount()}
 		break
-	case constant.PaymentSystemGroupAliasBitcoin:
+	case recurringpb.PaymentSystemGroupAliasBitcoin:
 		if err := n.setCryptoCurrencyTransactionParams(req); err != nil {
 			return nil, err
 		}
@@ -130,13 +129,13 @@ func (n *CardPay) getCallbackRequest() (*proto.CardPayPaymentCallback, error) {
 	return req, nil
 }
 
-func (n *CardPay) setPaymentData(req *proto.CardPayPaymentCallback) error {
+func (n *CardPay) setPaymentData(_ *recurringpb.CardPayPaymentCallback) error {
 	var val string
 	var ok bool
 
 	params := n.order.GetPaymentMethodTxnParams()
 
-	pd := &proto.CallbackCardPayPaymentData{
+	pd := &recurringpb.CallbackCardPayPaymentData{
 		Id:          n.order.GetId(),
 		Amount:      n.order.GetOrderAmount(),
 		Currency:    n.order.GetCurrency(),
@@ -146,7 +145,7 @@ func (n *CardPay) setPaymentData(req *proto.CardPayPaymentCallback) error {
 	if v, err := ptypes.Timestamp(n.order.GetCreatedAt()); err != nil {
 		return err
 	} else {
-		pd.Created = v.Format(constant.PaymentSystemCardPayDateFormat)
+		pd.Created = v.Format(recurringpb.PaymentSystemCardPayDateFormat)
 	}
 
 	if val, ok = OrderAlphabetStatuses[n.order.PrivateStatus]; !ok {
@@ -182,11 +181,11 @@ func (n *CardPay) setPaymentData(req *proto.CardPayPaymentCallback) error {
 	return nil
 }
 
-func (n *CardPay) setBankCardTransactionParams(req *proto.CardPayPaymentCallback) error {
+func (n *CardPay) setBankCardTransactionParams(req *recurringpb.CardPayPaymentCallback) error {
 	var val string
 	var ok bool
 
-	ca := &proto.CallbackCardPayBankCardAccount{MaskedPan: n.order.GetPaymentMethodPayerAccount()}
+	ca := &recurringpb.CallbackCardPayBankCardAccount{MaskedPan: n.order.GetPaymentMethodPayerAccount()}
 	params := n.order.GetPaymentMethodTxnParams()
 
 	if val, ok = params["card_holder"]; !ok {
@@ -211,11 +210,11 @@ func (n *CardPay) setBankCardTransactionParams(req *proto.CardPayPaymentCallback
 	return nil
 }
 
-func (n *CardPay) setCryptoCurrencyTransactionParams(req *proto.CardPayPaymentCallback) error {
+func (n *CardPay) setCryptoCurrencyTransactionParams(_ *recurringpb.CardPayPaymentCallback) error {
 	var val string
 	var ok bool
 
-	cca := &proto.CallbackCardPayCryptoCurrencyAccount{CryptoAddress: n.order.PaymentMethodPayerAccount}
+	cca := &recurringpb.CallbackCardPayCryptoCurrencyAccount{CryptoAddress: n.order.PaymentMethodPayerAccount}
 	params := n.order.GetPaymentMethodTxnParams()
 
 	if val, ok = params["transaction_id"]; !ok {
