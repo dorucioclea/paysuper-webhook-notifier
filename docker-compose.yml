@@ -46,13 +46,24 @@ services:
         - CENTRIFUGO_ADMIN_PASSWORD=admin
         - CENTRIFUGO_ADMIN_SECRET=secret
     volumes:
-        - D:/Projects/Go/github.com/paysuper/paysuper-webhook-notifier/configs/centrifugo:/centrifugo
+        - ./configs/centrifugo:/centrifugo
     tty: true
     command: centrifugo --admin -c /centrifugo/config.json
     ports:
       - "8000:8000"
     networks:
         - p1devnet
+
+  etcd:
+    image: 'bitnami/etcd:latest'
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+    ports:
+      - 2379:2379
+      - 2380:2380
+    networks:
+      - p1devnet
               
 networks:
   p1devnet:
